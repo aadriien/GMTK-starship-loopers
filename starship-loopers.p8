@@ -7,6 +7,14 @@ function _init()
     -- state initialization
     _upd = u_start_screen
     _drw = d_start_screen
+
+    -- player initialization
+    ship = {
+        x = 64,
+        y = 64,
+        velx = 0,
+        vely = 0
+    }
 end
 
 function _update()
@@ -49,6 +57,18 @@ function d_intro()
     
 end
 
+function u_launch_phase()
+    -- TODO PLAYER CHOOSES LAUNCH VELOCITY ANGLE
+
+    _upd = u_play_game
+    _drw = d_play_game
+
+end
+
+function d_launch_phase()
+    -- TODO PLAYER CHOOSES LAUNCH VELOCITY ANGLE
+end
+
 function u_play_game()
     -- TODO: add end game condition
     if false then
@@ -68,6 +88,8 @@ end
 function d_end_screen()
     -- ADD END SCREEN DRAW CODE HERE
 end
+
+
 
 
 __gfx__
