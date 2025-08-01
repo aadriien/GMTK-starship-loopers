@@ -23,8 +23,18 @@ function _init()
     -- celestial body initialization
     bodies = {}
     num_bodies = 6
+    num_black_holes = 2
     for i = 1, num_bodies do 
-        add_body()
+        add_body("normal")
+    end
+    for i = 1, num_black_holes do 
+        add_body("blackhole")
+    end
+
+    fuel_snacks = {}
+    max_fuel_snacks = 3
+    for i = 1, max_fuel_snacks do
+        add_fuel_pickup()
     end
 
     -- star positions for background
@@ -59,6 +69,7 @@ function _init()
     -- global variables
     max_orbit_distance = 40
     max_speed = 8
+    map_boundary = 40
 
     selected_idx = 1
 end
@@ -148,7 +159,7 @@ function d_intro()
 
     -- draw only hardcoded examples (2 bodies)
     for body in all(bodies) do
-        circfill(body.x, body.y, body.size, 7)
+        circfill(body.x, body.y, body.size, body.color)
     end
 
 end
@@ -177,6 +188,7 @@ function u_play_game()
 
     -- update positions of ship, celestial bodies, and particles
     move_ship()
+    move_fuel_pickups()
     -- update particles
     for particle in all(particles) do
         particle.x = (particle.x + particle.vx + 128) % 128
@@ -195,7 +207,12 @@ function u_play_game()
     end
     
     -- end game condition when ship goes off screen
-    if ship.x < 0 or ship.x > 128 or ship.y < 0 or ship.y > 128 then
+    if 
+        ship.x < 0 - map_boundary or 
+        ship.x > 128 + map_boundary or 
+        ship.y < 0 - map_boundary or 
+        ship.y > 128 + map_boundary 
+    then
         _upd = u_end_screen
         _drw = d_end_screen
     end
@@ -204,27 +221,34 @@ end
 function d_play_game()
     -- ADD PLAY GAME DRAW CODE HERE
     cls()
+    camera(flr(ship.x - 64), flr(ship.y - 64))
     map()
     -- draw particles
     for particle in all(particles) do
         pset(particle.x, particle.y, 1)
+    end
+    -- draw celestial bodies
+    for body in all(bodies) do
+        circfill(body.x, body.y, body.size, body.color)
     end
     -- draw ship
     spr(ship.sprite, ship.x, ship.y)
     if (ship.target != "none") and (ship.state == "lock") then
         line(ship.x, ship.y, ship.target.x, ship.target.y, 8)
     end
-    -- draw celestial bodies
-    for body in all(bodies) do
-        circfill(body.x, body.y, body.size, 7)
-    end
+    draw_fuel_pickups()
+    
+    camera(0,0)
     draw_fuel()
 end
 
 function u_end_screen() 
-    -- ADD END SCREEN CODE HERE
+    -- ADD END SCREEN CODE HERE    
     if btn(❎) then
-        _init() -- reinitialize game state
+        -- TODO: create cooldown to prevent x carryover
+
+        -- reinitialize game state
+        _init()
         _upd = u_start_screen
         _drw = d_start_screen
     end
@@ -309,7 +333,31 @@ function draw_fuel()
     spr(15, 118, 2)
     spr(31, 118, 10)
 end
+
+function draw_fuel_pickups()
+    for fuel in all(fuel_snacks) do
+        spr(fuel.sprite, fuel.x, fuel.y)
+    end
+end
+
 -- movement physics
+
+function move_fuel_pickups()
+    for fuel in all(fuel_snacks) do
+        fuel.x += fuel.vel.x
+        fuel.y += fuel.vel.y
+        fuel.life -= 1/30
+
+        if fuel.life <= 0 then
+            del(fuel_snacks, fuel)
+        end
+    end
+
+    if #fuel_snacks < max_fuel_snacks then
+        add_fuel_pickup()
+    end
+end
+
 function move_ship()
     if ship.state == "lock" then
         -- TODO: orbital mechanics
@@ -336,14 +384,14 @@ function move_ship()
             -- TODO: make speed proportional to distance
             local speed = ((max_orbit_distance - distance) / max_orbit_distance) * max_speed
             -- lerp to transition into orbit
-            ship.vel.x = ship.vel.x+0.1*(new_vel.x-ship.vel.x)
-            ship.vel.y = ship.vel.y+0.1*(new_vel.y-ship.vel.y)
+            ship.vel.x = ship.vel.x+0.01*(new_vel.x-ship.vel.x)
+            ship.vel.y = ship.vel.y+0.01*(new_vel.y-ship.vel.y)
 
 
             -- gravitational pull towards the center of the celestial body
-            local gravity_pull = create_vector(ship.target.x - ship.x, ship.target.y - ship.y)
-            gravity_pull.x *= 0.005
-            gravity_pull.y *= 0.005
+            local gravity_pull = norm(create_vector(ship.target.x - ship.x, ship.target.y - ship.y))
+            gravity_pull.x *= 0.003 * sqrt(ship.target.mass) * speed
+            gravity_pull.y *= 0.003 * sqrt(ship.target.mass) * speed
             ship.vel.x += gravity_pull.x
             ship.vel.y += gravity_pull.y
 
@@ -352,6 +400,15 @@ function move_ship()
     -- ship moves along same path (no friction in space!)
     ship.x += ship.vel.x
     ship.y += ship.vel.y
+
+    -- check for fuel pickups
+    for fuel in all(fuel_snacks) do
+        local distance = dst(ship, fuel)
+        if distance <= 8 then
+            del(fuel_snacks, fuel)
+            ship.fuel_left = min(ship.fuel_left + 100, ship.fuel_max)
+        end
+    end
 end
 
 function find_closest()
@@ -384,13 +441,36 @@ function flow(x, y, scale, speed)
 end
 
 -- initialization functions
-function add_body()
+function add_body(type)
+    if type == "normal" then
+        new_mass = rnd(80) + 10
+        new_size = sqrt(new_mass) - 2
+        new_color = 7
+    else -- for black holes
+        new_mass = 800
+        new_size = rnd(2) + 2
+        new_color = 13
+    end
     local new_body = {
         x = rnd(128),
         y = rnd(128),
-        size = rnd({2, 3, 3, 6})
+        mass = new_mass,
+        size = new_size,
+        color = new_color
     }
     add(bodies, new_body)
+end
+
+function add_fuel_pickup() 
+    local origin_planet = rnd(bodies)
+    local new_fuel_snack = {
+        x = origin_planet.x,
+        y = origin_planet.y,
+        sprite = 14,
+        life = rnd(6) + 6,
+        vel = create_vector(rnd(1) - 0.5, rnd(1) - 0.5)
+    }
+    add(fuel_snacks, new_fuel_snack)
 end
 
 -- utility functions
@@ -423,14 +503,14 @@ function deepcopy(tbl)
 end
 
 __gfx__
-00000000000000000c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007777770
-0000000000000000ccc0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000077000007
-007007000cccccc0c0c0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000070000707
-00077000cccccccc0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000077700707
-000770000ccccccc0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000070000007
-007007000ccccccc0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000077000707
-00000000000cccc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000070000007
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000077700007
+00000000000000000c000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000bbbb0007777770
+0000000000000000ccc0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000bbb77b077000007
+007007000cccccc0c0c0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003bbbb7bb70000707
+00077000cccccccc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000033bbbbbb77700707
+000770000ccccccc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000033bbbbbb70000007
+007007000ccccccc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000333bbbbb77000707
+00000000000cccc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000333333070000007
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000033330077700007
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000070000007
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000077000007
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000070000007
