@@ -17,6 +17,7 @@ function _init()
         fuel_left = 500,
         score = 0,
         sprite = 2,
+        size = 4,
         state = "drift", -- "drift" or "lock"
         target = "none"
     }
@@ -348,6 +349,14 @@ function move_fuel_pickups()
 
         if fuel.life <= 0 then
             del(fuel_snacks, fuel)
+        else
+            -- check for collision with any black hole
+            for body in all(bodies) do
+                if body.type == "blackhole" and is_collision(fuel, body) then
+                    del(fuel_snacks, fuel)
+                    break
+                end
+            end
         end
     end
 
@@ -409,6 +418,11 @@ function move_ship()
     end
 end
 
+function is_collision(obj_a, obj_b)
+    local dist = dst(obj_a, obj_b)
+    return dist < obj_a.size + obj_b.size
+end
+
 function find_closest()
     local min_dist = max_orbit_distance
     local closest = "none"
@@ -454,21 +468,33 @@ function add_body(type)
         y = rnd(128),
         mass = new_mass,
         size = new_size,
-        color = new_color
+        color = new_color,
+        type = type
     }
     add(bodies, new_body)
 end
 
 function add_fuel_pickup() 
-    local origin_planet = rnd(bodies)
-    local new_fuel_snack = {
-        x = origin_planet.x,
-        y = origin_planet.y,
-        sprite = 14,
-        life = rnd(6) + 6,
-        vel = create_vector(rnd(1) - 0.5, rnd(1) - 0.5)
-    }
-    add(fuel_snacks, new_fuel_snack)
+    -- ensure fuel only originates from planets
+    local planets = {}
+    for body in all(bodies) do
+        if body.type == "normal" then
+            add(planets, body)
+        end
+    end
+
+    if #planets > 0 then
+        local origin_planet = rnd(planets)
+        local new_fuel_snack = {
+            x = origin_planet.x,
+            y = origin_planet.y,
+            sprite = 14,
+            size = 6,
+            life = rnd(6) + 6,
+            vel = create_vector(rnd(1) - 0.5, rnd(1) - 0.5)
+        }
+        add(fuel_snacks, new_fuel_snack)
+    end
 end
 
 -- utility functions
