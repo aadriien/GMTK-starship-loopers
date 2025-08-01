@@ -53,12 +53,6 @@ function _draw()
 end
 
 
-
-
-
-
-
-
 -- states
 function u_start_screen() 
     -- ADD START SCREEN CODE HERE
@@ -76,6 +70,7 @@ function u_start_screen()
         _upd = u_play_game
         _drw = d_play_game
     elseif btn(❎) and selected_idx == 2 then
+        bodies_temp = deepcopy(bodies)
         _upd = u_intro
         _drw = d_intro
     end
@@ -89,15 +84,52 @@ end
 function u_intro()
     -- TODO ADD INTRO CODE HERE (tutorial mode)
 
-    if false then
-        _upd = u_play_game
-        _drw = d_play_game
+    -- hardcode celestial body examples (2 planets)
+    if not intro_initialized then
+        bodies = {
+            { x = 30, y = 70, size = 4 },
+            { x = 110, y = 45, size = 8 }
+        }
+        intro_initialized = true -- flag to prevent reset every frame
+    end
+
+    if btn(❎) then
+        ship.state = "lock"
+    else
+        ship.state = "drift"
+    end
+
+    move_ship()
+
+    if btn(🅾️) then
+        -- restore original randomized celestial bodies
+        bodies = deepcopy(bodies_temp) 
+        intro_initialized = false
+        
+        _upd = u_start_screen
+        _drw = d_start_screen
     end
 end
 
 function d_intro()
     -- TODO ADD INTRO CODE HERE
-    
+    cls()
+    map()
+    print_with_glow("your rocket loop awaits", 20, 10, 7)
+    print_hint("❎ to toggle gravity tether", 10, 105, 6, 0)
+    print_hint("🅾️ to return to home screen", 10, 115, 6, 0)
+
+    -- draw ship
+    spr(ship.sprite, ship.x, ship.y)
+    if (ship.target != "none") and (ship.state == "lock") then
+        line(ship.x, ship.y, ship.target.x, ship.target.y, 8)
+    end
+
+    -- draw only hardcoded examples (2 bodies)
+    for body in all(bodies) do
+        circfill(body.x, body.y, body.size, 7)
+    end
+
 end
 
 function u_launch_phase()
@@ -296,6 +328,19 @@ function norm(vec)
     
     return create_vector((vec.x / magnitude), (vec.y / magnitude))
 end
+
+function deepcopy(tbl)
+    local copy = {}
+    for k, v in pairs(tbl) do
+        if type(v) == "table" then
+            copy[k] = deepcopy(v)
+        else
+            copy[k] = v
+        end
+    end
+    return copy
+end
+
 __gfx__
 00000000000000000c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000ccc0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
