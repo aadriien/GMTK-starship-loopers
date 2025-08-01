@@ -27,9 +27,21 @@ function _init()
         add_body()
     end
 
+    -- star positions for background
+    stars = {}
+    for i = 1, 50 do
+        add(stars, {
+            x = flr(rnd(128)),
+            y = flr(rnd(128)),
+            speed = rnd(0.5) + 0.2
+        })
+    end
+
     -- global variables
     max_orbit_distance = 40
     max_speed = 8
+
+    selected_idx = 1
 end
 
 function _update()
@@ -40,17 +52,38 @@ function _draw()
     _drw()
 end
 
+
+
+
+
+
+
+
 -- states
 function u_start_screen() 
     -- ADD START SCREEN CODE HERE
 
-    _upd = u_play_game
+    -- navigate choices
+    if btnp(⬅️) then
+        selected_idx -= 1
+        if selected_idx < 1 then selected_idx = 2 end
+    elseif btnp(➡️) then
+        selected_idx += 1
+        if selected_idx > 2 then selected_idx = 1 end
+    end
+
+    if btn(❎) and selected_idx == 1 then
+        _upd = u_play_game
+        _drw = d_play_game
+    elseif btn(❎) and selected_idx == 2 then
+        _upd = u_intro
+        _drw = d_intro
+    end
 end
 
 function d_start_screen()
     -- ADD START SCREEN DRAW CODE HERE
-    _drw = d_play_game
-
+    draw_title()
 end
 
 function u_intro()
@@ -120,6 +153,67 @@ end
 function d_end_screen()
     -- ADD END SCREEN DRAW CODE HERE
 end
+
+
+-- start / end screen drawing functions
+function draw_starry_bg()
+    cls(0)
+    for s in all(stars) do
+        pset(s.x, s.y, 5 + rnd(2)) -- white/grey stars
+        s.y += s.speed
+        if s.y > 128 then
+            s.y = 0
+            s.x = flr(rnd(128))
+        end
+    end
+end
+
+function draw_title()
+    draw_starry_bg()
+    
+    print_with_glow("starship loopers", 10, 30, 7)
+    
+    draw_button(10, 100, "tutorial", selected_idx == 1)
+    draw_button(60, 100, "start game", selected_idx == 2)
+
+    print_hint("❎ to select", 25, 115, 6, 0)
+end
+
+function print_with_glow(str, x, y, col)
+    -- draw shadow/glow offsets
+    local glow_color = 3
+    for dx = -1, 1 do
+        for dy = -1, 1 do
+            if dx ~= 0 or dy ~= 0 then
+                print(str, x + dx, y + dy, glow_color)
+            end
+        end
+    end
+    -- draw main text
+    print(str, x, y, col)
+end
+
+function print_hint(txt, x, y, col, shadow)
+    for dx = -1, 1 do
+        for dy = -1, 1 do
+            if dx != 0 or dy != 0 then
+                print(txt, x + dx, y + dy, shadow)
+            end
+        end
+    end
+    print(txt, x, y, col)
+end
+
+function draw_button(x, y, label, selected)
+    local w = #label * 4 + 4
+
+    -- change button color (dark blue) if selected
+    rectfill(x - 4, y - 2, x + w, y + 8, selected and 6 or 1)
+    rect(x - 4, y - 2, x + w, y + 8, 7)
+
+    print(label, x, y, 7)
+end
+
 
 -- movement physics
 function move_ship()
