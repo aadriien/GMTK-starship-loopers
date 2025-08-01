@@ -37,6 +37,25 @@ function _init()
         })
     end
 
+    -- particles for flow field
+    flow_params = {
+        a = rnd(1) - .5,
+        b = rnd(1) - .5,
+        c = rnd(1) - .5,
+        d = rnd(1) - .5
+    }
+
+    particles = {}
+    for i = 1, 1000 do
+        add(particles, {
+            x = flr(rnd(128)),
+            y = flr(rnd(128)),
+            vx = rnd(1) - .5,
+            vy = rnd(1) - .5,
+            lifespan = rnd(64)
+        })
+    end
+
     -- global variables
     max_orbit_distance = 40
     max_speed = 8
@@ -156,7 +175,22 @@ function u_play_game()
 
     -- update positions of ship, celestial bodies, and particles
     move_ship()
-
+    -- update particles
+    for particle in all(particles) do
+        particle.x = (particle.x + particle.vx + 128) % 128
+        particle.y = (particle.y + particle.vy + 128) % 128
+        vx, vy = flow(particle.x, particle.y)
+        particle.vx = (particle.vx + vx) / 2
+        particle.vy = (particle.vy + vy) / 2
+        particle.lifespan = particle.lifespan - 1
+        if particle.lifespan < 0 then
+            particle.x = flr(rnd(128))
+            particle.y = flr(rnd(128))
+            particle.vx = rnd(1) - .5
+            particle.vy = rnd(1) - .5
+            particle.lifespan = rnd(64)
+        end
+    end
     
     -- end game condition when ship goes off screen
     if ship.x < 0 or ship.x > 128 or ship.y < 0 or ship.y > 128 then
@@ -169,6 +203,10 @@ function d_play_game()
     -- ADD PLAY GAME DRAW CODE HERE
     cls()
     map()
+    -- draw particles
+    for particle in all(particles) do
+        pset(particle.x, particle.y, 1)
+    end
     -- draw ship
     spr(ship.sprite, ship.x, ship.y)
     if (ship.target != "none") and (ship.state == "lock") then
@@ -261,7 +299,6 @@ function draw_button(x, y, label, selected)
     print(label, x, y, 7)
 end
 
-
 -- movement physics
 function move_ship()
     if ship.state == "lock" then
@@ -315,6 +352,22 @@ function find_closest()
         end
     end
     return closest
+end
+
+function flow(x, y, scale, speed)
+    x = x/128 or 0
+    y = y/128 or 0
+    scale = scale or 2
+    speed = speed or 1/16
+
+    a = flow_params.a * scale
+    b = flow_params.b * scale
+    c = flow_params.c * scale
+    d = flow_params.d * scale
+
+    x1 = sin(a * y) + c * cos(a * x)
+    y1 = sin(b * x) + d * cos(b * y)
+    return (x1 - x) * speed, (y1 - y) * speed
 end
 
 -- initialization functions
