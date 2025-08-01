@@ -244,9 +244,7 @@ end
 
 function u_end_screen() 
     -- ADD END SCREEN CODE HERE    
-    if btn(❎) then
-        -- TODO: create cooldown to prevent x carryover
-
+    if btn(🅾️) then
         -- reinitialize game state
         _init()
         _upd = u_start_screen
@@ -284,7 +282,7 @@ function draw_title()
 
     elseif _upd == u_end_screen then
         print_with_glow("game over", 20, 30, 7)
-        draw_button(30, 100, "❎ play again", 1)
+        draw_button(30, 100, "🅾️ play again", 1)
     end
 end
 
