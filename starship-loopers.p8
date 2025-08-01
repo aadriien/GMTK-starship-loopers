@@ -78,6 +78,8 @@ end
 
 function d_start_screen()
     -- ADD START SCREEN DRAW CODE HERE
+    cls()
+    map()
     draw_title()
 end
 
@@ -156,8 +158,8 @@ function u_play_game()
     move_ship()
 
     
-    -- TODO: add end game condition
-    if false then
+    -- end game condition when ship goes off screen
+    if ship.x < 0 or ship.x > 128 or ship.y < 0 or ship.y > 128 then
         _upd = u_end_screen
         _drw = d_end_screen
     end
@@ -180,10 +182,16 @@ end
 
 function u_end_screen() 
     -- ADD END SCREEN CODE HERE
+    if btn(❎) then
+        _init() -- reinitialize game state
+        _upd = u_start_screen
+        _drw = d_start_screen
+    end
 end
 
 function d_end_screen()
     -- ADD END SCREEN DRAW CODE HERE
+    draw_title()
 end
 
 
@@ -203,12 +211,16 @@ end
 function draw_title()
     draw_starry_bg()
     
-    print_with_glow("starship loopers", 10, 30, 7)
-    
-    draw_button(10, 100, "tutorial", selected_idx == 1)
-    draw_button(60, 100, "start game", selected_idx == 2)
+    if _upd == u_start_screen then
+        print_with_glow("starship loopers", 10, 30, 7)
+        draw_button(10, 100, "tutorial", selected_idx == 1)
+        draw_button(60, 100, "start game", selected_idx == 2)
+        print_hint("❎ to select", 25, 115, 6, 0)
 
-    print_hint("❎ to select", 25, 115, 6, 0)
+    elseif _upd == u_end_screen then
+        print_with_glow("game over", 20, 30, 7)
+        draw_button(30, 100, "❎ play again", 1)
+    end
 end
 
 function print_with_glow(str, x, y, col)
@@ -238,6 +250,9 @@ end
 
 function draw_button(x, y, label, selected)
     local w = #label * 4 + 4
+    if _upd == u_end_screen then -- give play again more padding
+        w += 2
+    end
 
     -- change button color (dark blue) if selected
     rectfill(x - 4, y - 2, x + w, y + 8, selected and 6 or 1)
