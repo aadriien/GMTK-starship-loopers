@@ -19,7 +19,8 @@ function _init()
         sprite = 2,
         size = 4,
         state = "drift", -- "drift" or "lock"
-        target = "none"
+        target = "none",
+        portal_cooldown = 0
     }
     -- celestial body initialization
     bodies = {}
@@ -76,6 +77,10 @@ function _init()
         y = 20,
         mass = 80
     }
+
+    -- camera perspective
+    cam = { x = 0, y = 0 }
+
     -- global variables
     max_orbit_distance = 100
     max_speed = 6
@@ -201,6 +206,10 @@ function u_play_game()
     -- update positions of ship, celestial bodies, and particles
     move_ship()
     move_fuel_pickups()
+
+    -- check if ship flying into any portals
+    activate_portal()
+
     -- update particles
     for particle in all(particles) do
         particle.x = (particle.x + particle.vx + 128) % 128
@@ -216,6 +225,24 @@ function u_play_game()
             particle.vy = rnd(1) - .5
             particle.lifespan = rnd(64)
         end
+    end
+
+    -- smooth camera follow with teleport detection
+    local target_cam_x = ship.x - 64
+    local target_cam_y = ship.y - 64
+    local cam_distance = sqrt(
+        sqr(target_cam_x - cam.x) + 
+        sqr(target_cam_y - cam.y)
+    )
+    
+    -- if ship teleported far away, snap camera closer
+    if cam_distance > 100 then
+        cam.x = target_cam_x
+        cam.y = target_cam_y
+    else
+        -- normal smooth follow
+        cam.x += 0.1 * (target_cam_x - cam.x)
+        cam.y += 0.1 * (target_cam_y - cam.y)
     end
     
     -- end game condition when ship goes off screen
@@ -233,7 +260,7 @@ end
 function d_play_game()
     -- ADD PLAY GAME DRAW CODE HERE
     cls()
-    camera(flr(ship.x - 64), flr(ship.y - 64))
+    camera(flr(cam.x), flr(cam.y))
     map()
     -- draw particles
     for particle in all(particles) do
@@ -364,7 +391,6 @@ end
 
 function draw_station()
     sspr(96, 0, 16, 16, station.x, station.y)
-
 end
 
 -- movement physics
@@ -393,6 +419,11 @@ function move_fuel_pickups()
 end
 
 function move_ship()
+    -- decrement portal cooldown
+    if ship.portal_cooldown > 0 then
+        ship.portal_cooldown -= 1
+    end
+
     if ship.state == "lock" then
         -- TODO: orbital mechanics
         ship.target = find_closest()
@@ -451,6 +482,39 @@ end
 function is_collision(obj_a, obj_b)
     local dist = dst(obj_a, obj_b)
     return dist < obj_a.size + obj_b.size
+end
+
+function activate_portal()
+    -- don't activate if in cooldown
+    if ship.portal_cooldown > 0 then
+        return
+    end
+    
+    -- check if ship intersecting with any portals
+    for portal in all(portals) do
+        if is_collision(ship, portal) then
+            -- find another portal to teleport to
+            local other_portals = {}
+            for p in all(portals) do
+                if p != portal then
+                    add(other_portals, p)
+                end
+            end
+
+            if #other_portals > 0 then
+                local dest = rnd(other_portals)
+                
+                -- instant teleportation
+                ship.x = dest.x
+                ship.y = dest.y
+                
+                -- portal cooldown to prevent immediate re-teleport
+                ship.portal_cooldown = 45
+            end
+
+            break
+        end
+    end
 end
 
 function find_closest()
@@ -566,7 +630,8 @@ function add_portals()
     local new_portal = {
         x = px,
         y = py,
-        sprite = 3
+        sprite = 3,
+        size = 4
     }
     add(portals, new_portal)
 end
