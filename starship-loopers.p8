@@ -74,9 +74,9 @@ function _init()
         mass = 80
     }
     -- global variables
-    max_orbit_distance = 40
-    max_speed = 8
-    map_boundary = 40
+    max_orbit_distance = 100
+    max_speed = 2
+    map_boundary = 80
 
     selected_idx = 1
 end
@@ -410,15 +410,16 @@ function move_ship()
             new_vel = norm(new_vel)
             -- TODO: make speed proportional to distance
             local speed = ((max_orbit_distance - distance) / max_orbit_distance) * max_speed
+            
+            
             -- lerp to transition into orbit
-            ship.vel.x = ship.vel.x+0.01*(new_vel.x-ship.vel.x)
-            ship.vel.y = ship.vel.y+0.01*(new_vel.y-ship.vel.y)
-
+            ship.vel.x = ship.vel.x+0.003*(new_vel.x-ship.vel.x)
+            ship.vel.y = ship.vel.y+0.003*(new_vel.y-ship.vel.y)
 
             -- gravitational pull towards the center of the celestial body
-            local gravity_pull = norm(create_vector(ship.target.x - ship.x, ship.target.y - ship.y))
-            gravity_pull.x *= 0.003 * sqrt(ship.target.mass) * speed
-            gravity_pull.y *= 0.003 * sqrt(ship.target.mass) * speed
+            local gravity_pull = create_vector(ship.target.x - ship.x, ship.target.y - ship.y)
+            gravity_pull.x *= 0.0016 * ((max_orbit_distance - distance) / max_orbit_distance) * sqrt(ship.target.mass) 
+            gravity_pull.y *= 0.0016 * ((max_orbit_distance - distance) / max_orbit_distance) * sqrt(ship.target.mass)
             ship.vel.x += gravity_pull.x
             ship.vel.y += gravity_pull.y
 
