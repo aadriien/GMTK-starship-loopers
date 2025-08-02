@@ -13,8 +13,8 @@ function _init()
         x = 64,
         y = 64,
         vel = create_vector(1,1),
-        fuel_max = 500,
-        fuel_left = 500,
+        fuel_max = 250,
+        fuel_left = 250,
         score = 0,
         sprite = 2,
         size = 4,
@@ -75,7 +75,7 @@ function _init()
     }
     -- global variables
     max_orbit_distance = 100
-    max_speed = 2
+    max_speed = 6
     map_boundary = 80
 
     selected_idx = 1
