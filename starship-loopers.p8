@@ -113,6 +113,8 @@ function _init()
     -- camera perspective
     cam = { x = 0, y = 0 }
 
+    printh("map_boundary:\t" .. map_boundary)
+    printh("station:\t" .. station.x .. "\t" .. station.y)
 
 end
 
@@ -276,7 +278,7 @@ end
 function u_play_game()
     -- accept player input
     if btn(❎) then
-        if ship.fuel_left >= 0 and ship.portal_target == create_vector(0,0) then
+        if ship.fuel_left >= 0 then
             ship.state = "lock"
             add_ship_particle(rnd({3,11}))
             add_ship_particle(rnd({3,11}))
@@ -285,6 +287,8 @@ function u_play_game()
         ship.state = "drift"
         add_ship_particle(rnd({6,7}))
     end
+
+    printh("ship location:\t" .. ship.x .. "\t" .. ship.y.. "\t" .. ship.vel.x.. "\t" .. ship.vel.y)
 
     -- scoring: 1 point every second you're alive
     ship.score += (1/30)
@@ -754,9 +758,10 @@ function activate_portal()
             if is_collision(ship, portal) then
                 ship.portal_cooldown = cooldown_duration
                 ship.portal_target = portal
+                printh("target portal\t"..ship.portal_target.x.."\t"..ship.portal_target.y)
                 printh(ship.portal_cooldown .. "\t" .. get_magnitude(ship.vel))
 
-                local vec = norm(create_vector(ship.portal_target - ship.x, ship.portal_target - ship.y))
+                local vec = norm(create_vector(ship.portal_target.x - ship.x, ship.portal_target.y - ship.y))
                 local new_speed = max(0.8, get_magnitude(ship.vel) * .75)
                 
                 ship.vel.y = vec.y * new_speed
@@ -780,6 +785,7 @@ function activate_portal()
 
         if #other_portals > 0 then
             local dest = rnd(other_portals)
+            printh("dest portal\t"..dest.x.."\t"..dest.y)
             
             -- teleportation
             printh("teleport!")
@@ -787,9 +793,23 @@ function activate_portal()
             ship.y = dest.y
 
             local vec = norm(create_vector(station.x - dest.x, station.y - dest.y))
+            printh("vec:\t" .. vec.x .. "\t" .. vec.y)
             local new_speed = get_magnitude(ship.vel)
-            ship.vel.y = vec.y * new_speed
-            ship.vel.x = vec.x * new_speed
+            printh("new_speed:\t" .. new_speed)
+            
+            if ship.vel.y > 0 then
+                ship.vel.y = min(vec.y * new_speed, 10)
+            else
+                ship.vel.y = max(vec.y * new_speed, -10)
+            end
+
+            if ship.vel.x > 0 then
+                ship.vel.x = min(vec.x * new_speed, 10)
+            else
+                ship.vel.x = max(vec.x * new_speed, -10)
+            end
+
+            printh("ship.vel:\t" .. ship.vel.y .. "\t" .. ship.vel.x )
             ship.portal_target = create_vector(0,0)
         end
 
@@ -798,7 +818,7 @@ function activate_portal()
 
     -- When the ship is entering a portal
     if ship.portal_target != create_vector(0, 0) then
-        local vec = norm(create_vector(ship.portal_target - ship.x, ship.portal_target - ship.y))
+        local vec = norm(create_vector(ship.portal_target.x - ship.x, ship.portal_target.y - ship.y))
         local new_speed = get_magnitude(ship.vel)
 
         if ship.portal_cooldown == flr(cooldown_duration * 6 / 8) then
@@ -931,15 +951,13 @@ function add_stars()
     add(stars, new_star)
 end
 
-map_boundary = map_size / 2 + max_orbit_distance + 40
-
 function rnd_outside_window()
     local x, y
     local edge = flr(rnd(4))
     local map_boundary_with_padding = map_boundary - 80
     
-    local slidey_coord = (rnd(2) - 1) * map_boundary_with_padding
-    local edge_coord = (rnd(2) - 1) * 20
+    local slidey_coord = flr((rnd(2) - 1) * map_boundary_with_padding)
+    local edge_coord = flr((rnd(2) - 1) * 20)
 
     if edge == 0 then
         x = station.x + slidey_coord
@@ -954,6 +972,8 @@ function rnd_outside_window()
         x = station.x - map_boundary_with_padding + edge_coord
         y = station.y + slidey_coord
     end
+
+    printh("rnd_outside_window():\t" .. x .. "\t" .. y)
 
     return x, y
 end
@@ -988,9 +1008,26 @@ function create_vector(x_input, y_input)
 end
 
 function norm(vec)
-    local magnitude = sqrt(sqr(vec.x) + sqr(vec.y))
+    local abs_x = abs(vec.x)
+    local abs_y = abs(vec.y)
+    local max_dim = max(abs_x, abs_y)
+
+    if max_dim < 181 then
+        local magnitude = sqrt(sqr(vec.x) + sqr(vec.y))
+        return create_vector((vec.x / magnitude), (vec.y / magnitude))
+    end
+
+    local scale = 1
+    while max_dim > 50 do
+        max_dim /= 2
+        scale *= 2
+    end
     
-    return create_vector((vec.x / magnitude), (vec.y / magnitude))
+    local scaled_x = vec.x / scale
+    local scaled_y = vec.y / scale
+    local magnitude = sqrt(sqr(scaled_x) + sqr(scaled_y))
+    return create_vector(scaled_x / magnitude, scaled_y / magnitude)
+    
 end
 
 function deepcopy(tbl)
