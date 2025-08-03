@@ -8,7 +8,17 @@ function _init()
     _upd = u_start_screen
     _drw = d_start_screen
 
+    -- global variables
+    max_orbit_distance = 100
+    max_speed = 6
+    map_size = 256
+    map_boundary = map_size / 2 + max_orbit_distance + 40
+    offset = 0 -- for screenshake
 
+
+    ending_initialized = false 
+
+    selected_idx = 1
     -- space station
     station = {
         x = 128,
@@ -38,7 +48,8 @@ function _init()
         launch_phase = false,
         landing_countdown = 3,
         landing_success = false,
-        portal_cooldown = 0
+        portal_cooldown = 0,
+        portal_target = create_vector(0,0),
     }
     -- celestial body initialization
     bodies = {}
@@ -63,6 +74,14 @@ function _init()
         add_portals()
     end
 
+    local new_portal = {
+        x = 175,
+        y = 180,
+        sprite = 3,
+        size = 10
+    }
+    add(portals, new_portal)
+
     -- stars for title screen background
     stars = {}
     num_stars = 50
@@ -79,7 +98,7 @@ function _init()
     }
 
     particles = {}
-    for i = 1, 1 do
+    for i = 1, 500 do
         add(particles, {
             x = flr(rnd(512)-256),
             y = flr(rnd(512)-256),
@@ -94,17 +113,7 @@ function _init()
     -- camera perspective
     cam = { x = 0, y = 0 }
 
-    -- global variables
-    max_orbit_distance = 64
-    max_speed = 6
-    map_size = 256
-    map_boundary = map_size / 2 + max_orbit_distance
-    offset = 0 -- for screenshake
 
-
-    ending_initialized = false 
-
-    selected_idx = 1
 end
 
 function _update()
@@ -186,9 +195,7 @@ function d_intro()
 
 
     draw_ship()
-    if (ship.target != "none") and (ship.state == "lock") then
-        line(ship.x, ship.y, ship.target.x, ship.target.y, 8)
-    end
+    draw_lasso()
 
     -- draw only hardcoded examples (2 bodies)
     for body in all(bodies) do
@@ -243,9 +250,7 @@ function d_launch_phase()
         end
     end
     -- draw celestial bodies
-    for body in all(bodies) do
-        circfill(body.x, body.y, body.size, body.color)
-    end
+    draw_bodies()
     -- draw portals around perimeter
     for portal in all(portals) do
         spr(portal.sprite, portal.x, portal.y)
@@ -269,8 +274,6 @@ function d_launch_phase()
 end
 
 function u_play_game()
-    -- printh("My location \t" .. ship.x .. "\t" .. ship.y)
-
     -- accept player input
     if btn(❎) then
         if ship.fuel_left >= 0 then
@@ -319,9 +322,7 @@ function d_play_game()
         pset(particle.x + ship.x / 4 - 256, particle.y + ship.y / 4 - 256, 1)
     end
     -- draw celestial bodies
-    for body in all(bodies) do
-        circfill(body.x, body.y, body.size, body.color)
-    end
+    draw_bodies()
     -- draw portals around perimeter
     for portal in all(portals) do
         spr(portal.sprite, portal.x, portal.y)
@@ -331,9 +332,7 @@ function d_play_game()
 
     -- draw ship
     draw_ship()
-    if (ship.target != "none") and (ship.state == "lock") then
-        line(ship.x, ship.y, ship.target.x, ship.target.y, 8)
-    end
+    draw_lasso()
         -- draw ship emitted particles
     for part in all(ship_particles) do
         circfill(part.x, part.y, part.size, part.color)
@@ -341,10 +340,6 @@ function d_play_game()
     camera(0,0)
     draw_fuel()
     draw_score()
-    print(ship.x)
-    print(ship.y)
-    print(dst(ship, create_vector(128,128)))
-    print(ship.target.type)
 end
 
 function u_end_screen() 
@@ -407,10 +402,8 @@ function d_end_screen()
         pset(particle.x, particle.y, 1)
     end
     -- draw celestial bodies
-    for body in all(bodies) do
-        circfill(body.x, body.y, body.size, body.color)
-    end
-    -- draw portals
+    draw_bodies()
+    -- draw portals around perimeter
     for portal in all(portals) do
         spr(portal.sprite, portal.x, portal.y)
     end
@@ -503,6 +496,24 @@ function draw_button(x, y, label, selected)
     print(label, x, y, 7)
 end
 
+function draw_bodies()
+    for body in all(bodies) do
+        if body.type == "normal" then
+            spr(body.sprite, body.x, body.y)
+        elseif body.type == "blackhole" then
+            circ(body.x, body.y, body.size, body.color[1])
+            circ(body.x, body.y - 1, body.size, body.color[2])
+            circ(body.x + 1, body.y - 1, body.size, body.color[3])
+
+            local randomize = flr(rnd(10))
+            if randomize == 1 then
+                body.color[1] = rnd({7,8,9,10})
+                body.color[2] = rnd({7,8,9,10})
+                body.color[3] = rnd({7,8,9,10})
+            end
+        end
+    end
+end
 function draw_fuel() 
     local fuel_width = max(flr(ship.fuel_left / ship.fuel_max  * 14) + 1, 0)
     rectfill(119, 17 - fuel_width, 124, 17, 11)
@@ -522,8 +533,9 @@ function draw_station()
 end
 
 function draw_lasso()
-
-
+    if (ship.target != "none") and (ship.state == "lock") then
+        line(ship.x, ship.y, ship.target.x + 3, ship.target.y + 3, 8)
+    end
 end
 
 function draw_ship()
@@ -568,7 +580,6 @@ function move_ship()
     end
 
     if ship.state == "lock" then
-        -- TODO: orbital mechanics
         ship.target = find_closest()
 
         if ship.target != "none" then
@@ -599,16 +610,15 @@ function move_ship()
             local speed = ((max_orbit_distance - distance) / max_orbit_distance) * max_speed
             
             -- lerp to transition into orbit
-            ship.vel.x = ship.vel.x+0.003*((new_vel.x) * speed -ship.vel.x)
-            ship.vel.y = ship.vel.y+0.003*((new_vel.y) * speed -ship.vel.y)
+            ship.vel.x = ship.vel.x+0.003*(new_vel.x-ship.vel.x)
+            ship.vel.y = ship.vel.y+0.003*(new_vel.y-ship.vel.y)
 
             -- gravitational pull towards the center of the celestial body
             local gravity_pull = create_vector(ship.target.x - ship.x, ship.target.y - ship.y)
-            gravity_pull.x *= 0.0016 * ((max_orbit_distance - distance) / max_orbit_distance) * sqrt(ship.target.mass) / 2
-            gravity_pull.y *= 0.0016 * ((max_orbit_distance - distance) / max_orbit_distance) * sqrt(ship.target.mass) / 2
+            gravity_pull.x *= 0.0016 * ((max_orbit_distance - distance) / max_orbit_distance) * sqrt(ship.target.mass)
+            gravity_pull.y *= 0.0016 * ((max_orbit_distance - distance) / max_orbit_distance) * sqrt(ship.target.mass)
             ship.vel.x += gravity_pull.x
             ship.vel.y += gravity_pull.y
-
 
         end
     end
@@ -657,6 +667,7 @@ function update_particles()
     end
 
 end
+
 function is_collision(o1, o2)
     -- precheck to avoid numeric overflow problems in dst()
     local dx = abs(o1.x - o2.x)
@@ -670,26 +681,24 @@ function is_collision(o1, o2)
     local dist = dst(o1, o2)
     return dist < limit
 end
-
 function update_camera_position()
-    -- local target_cam_x = ship.x - 64
-    -- local target_cam_y = ship.y - 64
-    -- local cam_distance = sqrt(
-    --     sqr(target_cam_x - cam.x) + 
-    --     sqr(target_cam_y - cam.y)
-    -- )
+    local target_cam_x = ship.x - 64
+    local target_cam_y = ship.y - 64
+    local cam_distance = sqrt(
+        sqr(target_cam_x - cam.x) + 
+        sqr(target_cam_y - cam.y)
+    )
     
-    -- -- if ship teleported far away, snap camera closer
-    -- if cam_distance > 100 then
-    --     cam.x = target_cam_x
-    --     cam.y = target_cam_y
-    -- else
-    --     -- normal smooth follow
-    --     cam.x += 0.3 * (target_cam_x - cam.x)
-    --     cam.y += 0.3 * (target_cam_y - cam.y)
-    -- end
-    cam.x = ship.x - 64
-    cam.y = ship.y - 64
+    -- if ship teleported far away, snap camera closer
+    if cam_distance > 100 then
+        cam.x = target_cam_x
+        cam.y = target_cam_y
+    else
+        -- normal smooth follow
+        cam.x += 0.3 * (target_cam_x - cam.x)
+        cam.y += 0.3 * (target_cam_y - cam.y)
+    end
+
     -- shake screen
     if offset >= 0 then
         local fade = 0.9
@@ -712,7 +721,7 @@ end
 
 function update_ship_particles()
     for part in all(ship_particles) do
-        flowX, flowY = flow(part.x, part.y, 2, 1)
+        flowX, flowY = flow(part.x, part.y, 2, 0.5)
         part.x += part.vel.x + flowX
         part.y += part.vel.y + flowY
         part.lifespan -= 1/30
@@ -722,7 +731,62 @@ function update_ship_particles()
     end
 end
 
+function get_magnitude(vel)
+    return sqrt(sqr(vel.y) + sqr(vel.x))
+end
+
 function activate_portal()
+    if ship.portal_cooldown > 0 then
+        printh(ship.portal_cooldown .. "\t" .. get_magnitude(ship.vel))
+    end
+    cooldown_duration = 50
+
+    if ship.portal_cooldown == flr(cooldown_duration * 6 / 8) then
+        local vec = norm(create_vector(ship.portal_target.x - ship.x, ship.portal_target.y - ship.y))
+        local new_speed = 0.8
+        printh("slow")
+        ship.vel.y = vec.y * new_speed
+        ship.vel.x = vec.x * new_speed
+    end
+
+    if ship.portal_cooldown == flr(cooldown_duration * 5 / 8) then
+        -- find another portal to teleport to
+
+        local other_portals = {}
+        for p in all(portals) do
+            if p != ship.portal_target then
+                add(other_portals, p)
+            end
+        end
+
+        if #other_portals > 0 then
+            local dest = rnd(other_portals)
+            
+            -- teleportation
+            printh("teleport!")
+            ship.x = dest.x
+            ship.y = dest.y
+
+            local vec = norm(create_vector(station.x - dest.x, station.y - dest.y))
+            local new_speed = get_magnitude(ship.vel)
+            ship.vel.y = vec.y * new_speed
+            ship.vel.x = vec.x * new_speed
+            ship.portal_target = create_vector(0,0)
+        end
+    end
+
+    if ship.portal_cooldown == flr(cooldown_duration * 3 / 8) then
+            printh("speed up")
+            ship.vel.y *= 1.25
+            ship.vel.x *= 1.25
+    end
+
+    if ship.portal_cooldown == flr(cooldown_duration * 2 / 8) then
+            printh("speed up")
+            ship.vel.y *= 1.15
+            ship.vel.x *= 1.15
+    end
+
     -- don't activate if in cooldown
     if ship.portal_cooldown > 0 then
         return
@@ -731,25 +795,16 @@ function activate_portal()
     -- check if ship intersecting with any portals
     for portal in all(portals) do
         if is_collision(ship, portal) then
-            -- find another portal to teleport to
-            local other_portals = {}
-            for p in all(portals) do
-                if p != portal then
-                    add(other_portals, p)
-                end
-            end
+            ship.portal_cooldown = cooldown_duration
+            printh(ship.portal_cooldown .. "\t" .. get_magnitude(ship.vel))
 
-            if #other_portals > 0 then
-                local dest = rnd(other_portals)
-                
-                -- instant teleportation
-                ship.x = dest.x
-                ship.y = dest.y
-                
-                -- portal cooldown to prevent immediate re-teleport
-                ship.portal_cooldown = 45
-            end
+            local vec = norm(create_vector(portal.x - ship.x, portal.y - ship.y))
+            local new_speed = max(0.8, get_magnitude(ship.vel) * .75)
+            
+            ship.vel.y = vec.y * new_speed
+            ship.vel.x = vec.x * new_speed
 
+            ship.portal_target = portal
             break
         end
     end
@@ -796,18 +851,20 @@ function add_body(type)
         new_mass = rnd(80) + 10
         new_size = sqrt(new_mass) - 2
         new_color = 7
+        sprite = rnd({10,11,26, 27})
     else -- for black holes
         new_mass = 600
         new_size = rnd(2) + 2
-        new_color = 13
+        colors = {7,8,9}
     end
     local new_body = {
         x = rnd(256),
         y = rnd(256),
         mass = new_mass,
         size = new_size,
-        color = new_color,
-        type = type
+        color = colors,
+        type = type,
+        sprite = sprite
     }
     add(bodies, new_body)
 end
@@ -866,17 +923,17 @@ function rnd_outside_window()
         if rnd(1) < 0.5 then
             x = -20 + flr(rnd(20))
         else
-            x = 128 + flr(rnd(20)) 
+            x = map_size + flr(rnd(20)) 
         end
-        y = flr(rnd(128))
+        y = flr(rnd(map_size))
     else
         -- horizontal edge strip
         if rnd(1) < 0.5 then
             y = -20 + flr(rnd(20)) 
         else
-            y = 128 + flr(rnd(20)) 
+            y = map_size + flr(rnd(20)) 
         end
-        x = flr(rnd(128)) 
+        x = flr(rnd(map_size)) 
     end
 
     return x, y
@@ -888,14 +945,21 @@ function add_portals()
         x = px,
         y = py,
         sprite = 3,
-        size = 4
+        size = 10
     }
     add(portals, new_portal)
 end
 
 -- utility functions
-function dst(o1,o2)
-    return sqrt(sqr(o1.x-o2.x)+sqr(o1.y-o2.y))
+-- function dst(o1,o2)
+--     return sqrt(sqr(o1.x-o2.x)+sqr(o1.y-o2.y))
+-- end
+
+function dst(o1, o2)
+    local scale = 10
+    local dx = flr(o1.x - o2.x) / scale
+    local dy = flr(o1.y - o2.y) / scale
+    return sqrt(sqr(dx) + sqr(dy)) * scale
 end
 
 function sqr(x) return x*x end
@@ -922,23 +986,25 @@ function deepcopy(tbl)
     return copy
 end
 
+
+
 __gfx__
-000000000000000000666600062212000000000000000000000000000000000000000000000000000000000000000000000000000000000000bbbb0007777770
-0000000000000000056776602c16c612000000000000000000000000000000000000000000000000000000000000000005660000000056600bbb77b077000007
-007007000cccccc005677760611c7662000000000000000000000000000000000000000000000000000000000000000006670000000066703bbbb7bb70000707
-00077000cccccccc05667760d26c771d0000000000000000000000000000000000000000000000000000000000000000056700000000567033bbbbbb77700707
-000770000ccccccc05566660d211cc120000000000000000000000000000000000000000000000000000000000000000066700000000667033bbbbbb70000007
-007007000ccccccc005556002d211116000000000000000000000000000000000000000000000000000000000000000006a7000000006a70333bbbbb77000707
-00000000000cccc00a5656a002c26120000000000000000000000000000000000000000000000000000000000000000006a7006666006a700333333070000007
-0000000000000000003b3b000011d600000000000000000000000000000000000000000000000000000000000000000000600667766006000033330077700007
-00000000000000000066660000000000000000000000000000000000000000000000000000000000000000000000000006666677776666600000000070000007
-00000000000000000567766000000000000000000000000000000000000000000000000000000000000000000000000000600667766006000000000077000007
-00000000000000000567776000000000000000000000000000000000000000000000000000000000000000000000000006a6006666006a600000000070000007
-00000000000000000566776000000000000000000000000000000000000000000000000000000000000000000000000006a7000000006a700000000077700007
-00000000000000000556666000000000000000000000000000000000000000000000000000000000000000000000000006670000000066700000000070000007
-00000000000000000a5556a000000000000000000000000000000000000000000000000000000000000000000000000005670000000056700000000077000007
-00000000000000000056560000000000000000000000000000000000000000000000000000000000000000000000000006670000000066700000000070000007
-0000000000000000003b3b0000000000000000000000000000000000000000000000000000000000000000000000000005670000000056700000000007777770
+000000000000000000666600062212000000000000000000000000000000000000000000000000000000000000aaaa0000000000000000000bb0000007777770
+0000000000000000056776602c16c612000000000000000000000000000000000000000000000000000000000aaa77a005660000000056603b7b000077000007
+007007000cccccc005677760611c7662000000000000000000000000000000000000000000000000000eee009aaaa7aa06670000000066703bbb000070000707
+00077000cccccccc05667760d26c771d000000000000000000000000000000000000000000000000008ee7e099aaaaaa05670000000056700330000077700707
+000770000ccccccc05566660d211cc12000000000000000000000000000000000000000000000000008eeee099aaaaaa06670000000066700000000070000007
+007007000ccccccc005556002d2111160000000000000000000000000000000000000000000000000088eee0999aaaaa06a7000000006a700000000077000707
+00000000000cccc00a5656a002c26120000000000000000000000000000000000000000000000000000888000999999006a7006666006a700000000070000007
+0000000000000000003b3b000011d600000000000000000000000000000000000000000000000000000000000099990000600667766006000000000077700007
+000000000000000000666600000000000000000000000000000000000000000000000000000000000066600000cccc0006666677776666600000000070000007
+00000000000000000567766000000000000000000000000000000000000000000000000000000000066776000cbb77c000600667766006000000000077000007
+00000000000000000567776000000000000000000000000000000000000000000000000000000000d66676601bbcc7cb06a6006666006a600000000070000007
+00000000000000000566776000000000000000000000000000000000000000000000000000000000dd66666013bcccb306a7000000006a700000000077700007
+00000000000000000556666000000000000000000000000000000000000000000000000000000000ddd66660133bbccc06670000000066700000000070000007
+00000000000000000a5556a0000000000000000000000000000000000000000000000000000000000ddddd001113b33c05670000000056700000000077000007
+0000000000000000005656000000000000000000000000000000000000000000000000000000000000ddd000011133c006670000000066700000000070000007
+0000000000000000003b3b0000000000000000000000000000000000000000000000000000000000000000000011130005670000000056700000000007777770
 00000000000000000066660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000567766000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000567776000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -964,3 +1030,8 @@ __map__
 0006060606060606060606060606060600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000060606060606060606060600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000060600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__sfx__
+010c00000000202502075120751207522075321d5521d5321d5320f5320f5320f5320f53224522245221b52218522185221552224522245520a5520a5520c5520f5520f5520f5520c5520a552000020000200002
+__music__
+00 00424344
+
