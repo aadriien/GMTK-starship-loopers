@@ -936,7 +936,7 @@ map_boundary = map_size / 2 + max_orbit_distance + 40
 function rnd_outside_window()
     local x, y
     local edge = flr(rnd(4))
-    local map_boundary_with_padding = map_boundary - 50
+    local map_boundary_with_padding = map_boundary - 80
     
     local slidey_coord = (rnd(2) - 1) * map_boundary_with_padding
     local edge_coord = (rnd(2) - 1) * 20
