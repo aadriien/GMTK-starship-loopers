@@ -16,10 +16,30 @@ function _init()
     offset = 0 -- for screenshake
     highscore = 0
 
+    -- ui variables
+    ui_anim_timer = 0
+	ui_anim_speed = 12
+	ui_offset = 0
+
+    intro_text = {[[working on a space station 
+has never felt so boring...]],
+[[to pass the time, you and 
+your crewmates start testing 
+out some new gravitational 
+slingshot tech.]],
+[[it's time for you to show off 
+your interstellar 
+maneuvering skills!]],
+[[you're determined to
+loop around a black hole.]],
+[[just remember -- save enough 
+fuel to get back home!]]}
+
     init_round()
 end
 
 function _update()
+    ui_timer()
     _upd()
 end
 
@@ -31,24 +51,28 @@ end
 -- states
 function u_start_screen() 
     -- ADD START SCREEN CODE HERE
-
-    -- navigate choices
-    if btnp(⬅️) then
-        selected_idx -= 1
-        if selected_idx < 1 then selected_idx = 2 end
-    elseif btnp(➡️) then
-        selected_idx += 1
-        if selected_idx > 2 then selected_idx = 1 end
-    end
-
-    if btn(❎) and selected_idx == 1 then
-        _upd = u_launch_phase
-        _drw = d_launch_phase
-    elseif btn(❎) and selected_idx == 2 then
-        bodies_temp = deepcopy(bodies)
+    if btn(❎) then
         _upd = u_intro
         _drw = d_intro
     end
+
+    -- navigate choices
+    -- if btnp(⬅️) then
+    --     selected_idx -= 1
+    --     if selected_idx < 1 then selected_idx = 2 end
+    -- elseif btnp(➡️) then
+    --     selected_idx += 1
+    --     if selected_idx > 2 then selected_idx = 1 end
+    -- end
+
+    -- if btn(❎) and selected_idx == 1 then
+    --     _upd = u_intro
+    --     _drw = d_intro
+    -- elseif btn(❎) and selected_idx == 2 then
+    --     bodies_temp = deepcopy(bodies)
+    --     _upd = u_intro
+    --     _drw = d_intro
+    -- end
 end
 
 function d_start_screen()
@@ -59,51 +83,89 @@ function d_start_screen()
 end
 
 function u_intro()
+    update_particles()
+    if btnp(🅾️) then
+        intro_counter += 1
+        intro_char_idx = 1
+    end
+
+    if intro_counter > #intro_text then
+        _upd = u_launch_phase
+        _drw = d_launch_phase
+    end
     -- TODO ADD INTRO CODE HERE (tutorial mode)
 
-    -- hardcode celestial body examples (2 planets)
-    if not intro_initialized then
-        bodies = {
-            { x = 30, y = 70, size = 4 },
-            { x = 110, y = 45, size = 8 }
-        }
-        intro_initialized = true -- flag to prevent reset every frame
-    end
+    -- -- hardcode celestial body examples (2 planets)
+    -- if not intro_initialized then
+    --     bodies = {
+    --         { x = 30, y = 70, size = 4 },
+    --         { x = 110, y = 45, size = 8 }
+    --     }
+    --     intro_initialized = true -- flag to prevent reset every frame
+    -- end
 
-    if btn(❎) then
-        ship.state = "lock"
-    else
-        ship.state = "drift"
-    end
+    -- if btn(❎) then
+    --     ship.state = "lock"
+    -- else
+    --     ship.state = "drift"
+    -- end
 
-    move_ship()
+    -- move_ship()
 
-    if btn(🅾️) then
-        -- restore original randomized celestial bodies
-        bodies = deepcopy(bodies_temp) 
-        intro_initialized = false
+    -- if btn(🅾️) then
+    --     -- restore original randomized celestial bodies
+    --     bodies = deepcopy(bodies_temp) 
+    --     intro_initialized = false
         
-        _upd = u_start_screen
-        _drw = d_start_screen
-    end
+    --     _upd = u_start_screen
+    --     _drw = d_start_screen
+    -- end
 end
 
 function d_intro()
     -- TODO ADD INTRO CODE HERE
+    -- cls()
+    -- map()
+    -- print_with_glow("your rocket loop awaits", 20, 10, 7)
+    -- print_hint("❎ to toggle gravity tether", 10, 105, 6, 0)
+    -- print_hint("🅾️ to return to home screen", 10, 115, 6, 0)
+
+
+    -- draw_ship()
+    -- draw_lasso()
+
+    -- -- draw only hardcoded examples (2 bodies)
+    -- for body in all(bodies) do
+    --     circfill(body.x, body.y, body.size, body.color)
+    -- end
+
+    update_camera_position()
     cls()
+    camera(cam.x, cam.y)
     map()
-    print_with_glow("your rocket loop awaits", 20, 10, 7)
-    print_hint("❎ to toggle gravity tether", 10, 105, 6, 0)
-    print_hint("🅾️ to return to home screen", 10, 115, 6, 0)
 
-
-    draw_ship()
-    draw_lasso()
-
-    -- draw only hardcoded examples (2 bodies)
-    for body in all(bodies) do
-        circfill(body.x, body.y, body.size, body.color)
+    -- draw particles
+    for particle in all(particles) do
+        if dst(particle, create_vector(128,128)) >= map_boundary then
+            pset(particle.x + ship.x / 4 - 256, particle.y + ship.y / 4 - 256, 5)
+        else
+            pset(particle.x + ship.x / 4 - 256, particle.y + ship.y / 4 - 256, 1)
+        end
     end
+    -- draw celestial bodies
+    draw_bodies()
+    -- draw portals around perimeter
+    for portal in all(portals) do
+        spr(portal.sprite, portal.x, portal.y)
+    end
+    draw_fuel_pickups()
+    draw_station()
+    
+    draw_ship()
+
+    camera(0,0)
+    draw_intro_text(intro_text[intro_counter])
+    print_hint("🅾️ next", 10, 115 + ui_offset, 7, 0)
 
 end
 
@@ -334,16 +396,21 @@ function d_end_screen()
     end
 
     camera(0,0)
-    print_with_glow("game over", 20, 30, 7)
     if ship.landing_success == true then
-        print_with_glow("final score: ", 20, 40, 7)
-        print_with_glow(flr(ship.score), 20, 50, 7)
+        print_with_glow("you made it home!", 20, 20, 7)
+        print_with_glow("final score: ", 20, 30, 7)
+        print_with_glow(flr(ship.score), 20, 40, 7)
         if new_high_score then
-            print_with_glow("new high score!", 20, 60, 7)
+            print_with_glow("new high score!", 20, 50, 7)
         end
     else
-        print_with_glow("you drifted into the", 20, 40, 7)
-        print_with_glow("cold depths of space", 20, 50, 7)
+        print_with_glow("you drifted into the", 20, 30, 7)
+        print_with_glow("cold depths of space", 20, 40, 7)
+        if ship.last_target.type == "blackhole" then
+            print_with_glow("watch out for black holes...", 20, 50, 7)
+        elseif ship.fuel_left <= 0 then
+            print_with_glow("watch your fuel tank!", 20, 50, 7)
+        end
     end
     draw_button(30, 100, "🅾️ play again", 1)
 end
@@ -364,17 +431,23 @@ end
 
 function draw_title()
     draw_starry_bg()
-    
+    camera(ship.x - 64, ship.y - 64)
+    draw_ship()
+
+    camera(0,0)
     if _upd == u_start_screen then
-        print_with_glow("starship loopers", 10, 30, 7)
-        draw_button(10, 100, "tutorial", selected_idx == 1)
-        draw_button(60, 100, "start game", selected_idx == 2)
-        print_hint("❎ to select", 25, 115, 6, 0)
+        print_with_glow("starship loopers", 30, 30, 7)
+        --draw_button(10, 100, "tutorial", selected_idx == 1)
+        -- draw_button(40, 100, "start game", selected_idx == 2)
+        current_message = "❎ start game"
+        message_life = 1/30
+        draw_message()
 
         if highscore > 0 then
-            print_with_glow("best score: " .. flr(highscore), 10, 50, 7)
+            print_with_glow("best score: " .. flr(highscore), 30, 50 + ui_offset, 7)
         end
 	end
+
 end
 
 function print_with_glow(str, x, y, col)
@@ -403,7 +476,7 @@ function print_hint(txt, x, y, col, shadow)
 end
 
 function draw_score()
-    print_with_glow(flr(ship.score), 2,2,7)
+    print_with_glow(flr(ship.score), 2,2 + ui_offset,7)
 end
 
 function draw_button(x, y, label, selected)
@@ -420,11 +493,9 @@ function draw_button(x, y, label, selected)
 end
 
 function draw_message()
-    sx, sy = (96 % 16) * 8, (96 \ 16) * 8
-    sspr(sx, sy, 88, 16, 20, 112)
     if current_message != "" then
         text_width = #current_message * 4
-        print(current_message, (64 - text_width / 2), 112, 7)
+        print(current_message, (64 - text_width / 2), 112 + ui_offset, 7)
         
         -- text_width = #current_message * 8
         -- upperx = 64 - text_width / 2
@@ -442,8 +513,8 @@ function draw_message()
         rect_y1 = 112 - padding
         rect_y2 = 112 + 4 + padding
 
-        rect(rect_x1 - 1, rect_y1 + 1, rect_x2 - 1, rect_y2 + 1, 3)
-        rect(rect_x1, rect_y1, rect_x2, rect_y2, 11)
+        rect(rect_x1 - 1, rect_y1 + 1 + ui_offset, rect_x2 - 1, rect_y2 + 1 + ui_offset, 3)
+        rect(rect_x1, rect_y1 + ui_offset, rect_x2, rect_y2 + ui_offset, 11)
         
         message_life -= (1/30)
 
@@ -550,16 +621,19 @@ function move_ship()
         ship.target = find_closest()
 
         if ship.target != "none" then
+            ship.last_target = ship.target
             -- consume fuel
             ship.fuel_left -= 1
             
             if ship.fuel_left < ship.fuel_max / 3 then
                 current_message = "low fuel!"
-                message_life = 1
+                message_life = 2
             end
             if ship.fuel_left < 0 then  
                 current_message = "no fuel!"
-                message_life = 1
+                message_life = 2
+                offset = 3
+
             end
 
 
@@ -612,6 +686,7 @@ function move_ship()
             ship.fuel_left = min(ship.fuel_left + 100, ship.fuel_max)
             -- point bonus for refueling
             ship.score += 20
+            offset = 2
             current_message = "refueled!"
             message_life = 1.5
         end
@@ -712,13 +787,7 @@ function update_ship_particles()
     end
 end
 
-function get_magnitude(vel)
-    return sqrt(sqr(vel.y) + sqr(vel.x))
-end
 
-function get_magnitude(vel)
-    return sqrt(sqr(vel.y) + sqr(vel.x))
-end
 function activate_portal()
     -- ship.portal_cooldown: 0 when no portal interaction
     -- ship.portal_target: the portal that the ship is going into. defined before the ship teleports
@@ -773,29 +842,29 @@ function activate_portal()
             local new_speed = get_magnitude(ship.vel)
             printh("new_speed:\t" .. new_speed)
             
-            if ship.vel.y > 0 then
-                ship.vel.y = min(vec.y * new_speed, 5)
+            if vec.y * new_speed > 0 then
+                ship.vel.y = max(min(vec.y * new_speed, 5), 0.1)
             else
-                ship.vel.y = max(vec.y * new_speed, -5)
+                ship.vel.y = min(max(vec.y * new_speed, -5), -0.1)
             end
 
-            if ship.vel.x > 0 then
-                ship.vel.x = min(vec.x * new_speed, 5)
+            if vec.x * new_speed > 0 then
+                ship.vel.x = max(min(vec.x * new_speed, 5), 0.1)
             else
-                ship.vel.x = max(vec.x * new_speed, -5)
+                ship.vel.x = min(max(vec.x * new_speed, -5), -0.1)
             end
 
             printh("ship.vel:\t" .. ship.vel.y .. "\t" .. ship.vel.x )
-            ship.portal_target = create_vector(0,0)
+            ship.portal_target = nil
         end
 
         return
     end
 
     -- When the ship is entering a portal
-    if ship.portal_target != create_vector(0, 0) then
+    if ship.portal_target != nil then
         local vec = norm(create_vector(ship.portal_target.x - ship.x, ship.portal_target.y - ship.y))
-        local new_speed = get_magnitude(ship.vel)
+        local new_speed = 3
 
         if ship.portal_cooldown == flr(cooldown_duration * 6 / 8) then
             new_speed = 0.8
@@ -810,15 +879,8 @@ function activate_portal()
     -- leaving new portal
     if ship.portal_cooldown == flr(cooldown_duration * 3 / 8) then
             printh("speed up")
-            ship.vel.y *= 1.25
-            ship.vel.x *= 1.25
-    end
-
-    -- leaving new portal
-    if ship.portal_cooldown == flr(cooldown_duration * 2 / 8) then
-            printh("speed up")
-            ship.vel.y *= 1.15
-            ship.vel.x *= 1.15
+            ship.vel.y *= 5
+            ship.vel.x *= 5
     end
 end
 
@@ -999,14 +1061,13 @@ function create_vector(x_input, y_input)
     return {x = x_input, y = y_input}
 end
 
-function norm(vec)
+function get_magnitude(vec)
     local abs_x = abs(vec.x)
     local abs_y = abs(vec.y)
     local max_dim = max(abs_x, abs_y)
 
     if max_dim < 181 then
-        local magnitude = sqrt(sqr(vec.x) + sqr(vec.y))
-        return create_vector((vec.x / magnitude), (vec.y / magnitude))
+        return sqrt(sqr(vec.x) + sqr(vec.y))
     end
 
     local scale = 1
@@ -1017,9 +1078,24 @@ function norm(vec)
     
     local scaled_x = vec.x / scale
     local scaled_y = vec.y / scale
-    local magnitude = sqrt(sqr(scaled_x) + sqr(scaled_y))
-    return create_vector(scaled_x / magnitude, scaled_y / magnitude)
+    local magnitude = scale * sqrt(sqr(scaled_x) + sqr(scaled_y))
+    return magnitude
+end
+
+function norm(vec)
+    if vec.x == 0 and vec.y == 0 then
+        return create_vector(0, 0)
     end
+
+    local magnitude = get_magnitude(vec)
+
+    if magnitude == 0 then
+        return create_vector(0, 0)
+    end
+
+    return create_vector(vec.x / magnitude, vec.y / magnitude)
+
+end
 
 function deepcopy(tbl)
     local copy = {}
@@ -1034,6 +1110,11 @@ function deepcopy(tbl)
 end
 
 function init_round()
+    intro_counter = 1
+    intro_anim_timer = 0
+    intro_anim_speed = 1
+    intro_char_idx = 1
+
     ending_initialized = false 
     new_high_score = false
 
@@ -1062,6 +1143,7 @@ function init_round()
         size = 4,
         state = "drift", -- "drift" or "lock"
         target = "none",
+        last_target = "none",
         launch_angle = 0,
         launch_countdown = 3,
         launch_phase = false,
@@ -1149,7 +1231,41 @@ function init_round()
     printh("station:\t" .. station.x .. "\t" .. station.y)
 end
 
+function draw_intro_text(string)
+    intro_anim_timer += 1
+    if intro_anim_timer >= intro_anim_speed then
+        intro_anim_timer = 0
+        intro_char_idx = min(intro_char_idx + 1, #string)
+    end
+	x = 8
+	y = 8
+	-- declare bounds of the text box --
+	x_start = 8
+	x_limit = 112
+	y_limit = 96
+	for i = 1, #string do
+		if (string[i] == "\n") then
+			y += 8
+			x = x_start
+		else
+			c = 7
+			if intro_char_idx >= i then
+                x = print(string[i], x, y + ui_offset, c)
+			end
+		end
+	end
+end
 
+function ui_timer()
+    -- ui animation timer
+    -- called in every update frame (in _update())
+    -- apply ui_offset to UI variables to make them animate
+	ui_anim_timer += 1
+	if ui_anim_timer >= ui_anim_speed then
+		ui_anim_timer = 0
+		ui_offset = (ui_offset + 1) % 2
+	end
+end
 __gfx__
 000000000000000000666600062212000000000000000000000000000000000000000000000000000000000000aaaa0000000000000000000bb0000007777770
 0000000000000000056776602c16c612000000000000000000000000000000000000000000000000000000000aaa77a005660000000056603b7b000077000007
