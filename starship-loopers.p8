@@ -108,16 +108,13 @@ function d_intro()
 end
 
 function u_launch_phase()
-    -- TODO PLAYER CHOOSES LAUNCH VELOCITY ANGLE
-    if btnp(0) then
-        ship.launch_angle = (ship.launch_angle - 0.05) % 1
-    end
-    if btnp(1) then
-        ship.launch_angle = (ship.launch_angle + 0.05) % 1
-    end
-
-    ship.vel.x = cos(ship.launch_angle) 
-    ship.vel.y = - sin(ship.launch_angle)
+    -- random launch angle
+    -- if btnp(0) then
+    --     ship.launch_angle = (ship.launch_angle - 0.05) % 1
+    -- end
+    -- if btnp(1) then
+    --     ship.launch_angle = (ship.launch_angle + 0.05) % 1
+    -- end
 
     if btn(🅾️) then
         ship.launch_countdown -= 1/30
@@ -129,6 +126,11 @@ function u_launch_phase()
     end
 
     if ship.launch_countdown <= 0 then
+        ship.vel.x = cos(rnd(1)) 
+        ship.vel.y = sin((rnd(1)))
+        
+        current_message = "hold ❎ to lasso planets"
+        message_life = 6
         _upd = u_play_game
         _drw = d_play_game
     end
@@ -144,6 +146,10 @@ function d_launch_phase()
     cls()
     camera(cam.x, cam.y)
     map()
+
+    current_message = "hold 🅾️ to launch"
+    message_life = 1
+
     -- draw particles
     for particle in all(particles) do
         if dst(particle, create_vector(128,128)) >= map_boundary then
@@ -164,16 +170,14 @@ function d_launch_phase()
     draw_ship()
 
     -- draw launch angle
-    line(ship.x, ship.y, ship.x + ship.vel.x * 20, ship.y + ship.vel.y * 20, 9)
+    -- line(ship.x, ship.y, ship.x + ship.vel.x * 20, ship.y + ship.vel.y * 20, 9)
     -- draw launch countdown
-    if ship.launch_phase == true then
-        print(ship.launch_countdown) 
-    end
+
     -- print instructions
     camera(0,0)
-    print_hint("⬅️➡️ to choose launch angle", 2,2,7,3)
-    print_hint("hold 🅾️ to launch", 2,12, 7,3)
-
+    -- print_hint("⬅️➡️ to choose launch angle", 2,2,7,3)
+    -- print_hint("hold 🅾️ to launch", 2,12, 7,3)
+    draw_message()
 end
 
 function u_play_game()
@@ -219,7 +223,7 @@ function d_play_game()
     camera(flr(cam.x), flr(cam.y))
     map()
 
-    circfill(128,128, map_boundary, 1)
+    -- circfill(128,128, map_boundary, 1)
 
     -- draw particles
     for particle in all(particles) do
@@ -237,6 +241,7 @@ function d_play_game()
     -- draw ship
     draw_ship()
     draw_lasso()
+
         -- draw ship emitted particles
     for part in all(ship_particles) do
         circfill(part.x, part.y, part.size, part.color)
@@ -244,6 +249,8 @@ function d_play_game()
     camera(0,0)
     draw_fuel()
     draw_score()
+    draw_message()
+
 end
 
 function u_end_screen() 
@@ -412,6 +419,42 @@ function draw_button(x, y, label, selected)
     print(label, x, y, 7)
 end
 
+function draw_message()
+    sx, sy = (96 % 16) * 8, (96 \ 16) * 8
+    sspr(sx, sy, 88, 16, 20, 112)
+    if current_message != "" then
+        text_width = #current_message * 4
+        print(current_message, (64 - text_width / 2), 112, 7)
+        
+        -- text_width = #current_message * 8
+        -- upperx = 64 - text_width / 2
+        -- uppery = 64 - 4
+        -- lowerx = 64 + text_width / 2
+        -- lowery = 64 - 4
+
+        -- -- draw textbox
+        -- circfill(upperx, 64, 5, 3)
+        -- circfill(lowerx, 64, 5, 3)
+        -- rectfill(upperx - 1, uppery - 1, lowerx + 1, lowery - 1, 3)
+        padding = 4
+        rect_x1 = 64 - text_width / 2 - padding
+        rect_x2 = 64 + text_width/2 + padding + 1
+        rect_y1 = 112 - padding
+        rect_y2 = 112 + 4 + padding
+
+        rect(rect_x1 - 1, rect_y1 + 1, rect_x2 - 1, rect_y2 + 1, 3)
+        rect(rect_x1, rect_y1, rect_x2, rect_y2, 11)
+        
+        message_life -= (1/30)
+
+        if message_life <= 0 then
+            current_message = ""
+        end
+    else
+    end
+
+end
+
 function draw_bodies()
     for body in all(bodies) do
         if body.type == "normal" then
@@ -502,6 +545,16 @@ function move_ship()
             -- consume fuel
             ship.fuel_left -= 1
             
+            if ship.fuel_left < ship.fuel_max / 3 then
+                current_message = "low fuel!"
+                message_life = 1
+            end
+            if ship.fuel_left < 0 then  
+                current_message = "no fuel!"
+                message_life = 1
+            end
+
+
             if ship.target.type == "station" then
                 land_ship()
             else
@@ -557,7 +610,8 @@ end
 
 function land_ship()
     ship.landing_countdown -= 1/30
-
+    current_message = "hold 🅾️ to land"
+    message_life = 1
     if ship.landing_countdown <= 0 then
         ship.landing_success = true
         _upd = u_end_screen
@@ -973,8 +1027,8 @@ function init_round()
 
     -- player initialization
     ship = {
-        x = station.x,
-        y = station.y,
+        x = station.x + 2,
+        y = station.y - 4,
         vel = create_vector(0,0),
         fuel_max = 250,
         fuel_left = 250,
@@ -1020,7 +1074,7 @@ function init_round()
 
 
     fuel_snacks = {}
-    max_fuel_snacks = 3
+    max_fuel_snacks = 8
     for i = 1, max_fuel_snacks do
         add_fuel_pickup()
     end
@@ -1064,6 +1118,8 @@ function init_round()
     end
 
     ship_particles = {}
+    current_message = ""
+    message_life = 0
     
     -- camera perspective
     cam = { x = 0, y = 0 }
