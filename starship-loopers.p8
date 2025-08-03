@@ -276,7 +276,7 @@ end
 function u_play_game()
     -- accept player input
     if btn(❎) then
-        if ship.fuel_left >= 0 then
+        if ship.fuel_left >= 0 and ship.portal_target == create_vector(0,0) then
             ship.state = "lock"
             add_ship_particle(rnd({3,11}))
             add_ship_particle(rnd({3,11}))
@@ -740,6 +740,9 @@ function get_magnitude(vel)
 end
 
 function activate_portal()
+    -- ship.portal_cooldown: 0 when no portal interaction
+    -- ship.portal_target: the portal that the ship is going into. defined before the ship teleports
+
     if ship.portal_cooldown > 0 then
         printh(ship.portal_cooldown .. "\t" .. get_magnitude(ship.vel))
     end
@@ -762,22 +765,6 @@ function activate_portal()
                 break
             end
         end
-        return
-    end
-
-    -- When a ship is interacting with a portal, before teleport
-    if ship.portal_cooldown > flr(cooldown_duration * 5 / 8) then
-        local vec = norm(create_vector(ship.portal_target - ship.x, ship.portal_target - ship.y))
-        local new_speed = get_magnitude(ship.vel)
-
-        if ship.portal_cooldown == flr(cooldown_duration * 6 / 8) then
-            new_speed = 0.8
-            printh("slow")
-        end
-
-        ship.vel.y = vec.y * new_speed
-        ship.vel.x = vec.x * new_speed
-
         return
     end
 
@@ -806,6 +793,21 @@ function activate_portal()
             ship.portal_target = create_vector(0,0)
         end
 
+        return
+    end
+
+    -- When the ship is entering a portal
+    if ship.portal_target != create_vector(0, 0) then
+        local vec = norm(create_vector(ship.portal_target - ship.x, ship.portal_target - ship.y))
+        local new_speed = get_magnitude(ship.vel)
+
+        if ship.portal_cooldown == flr(cooldown_duration * 6 / 8) then
+            new_speed = 0.8
+            printh("slow")
+        end
+
+        ship.vel.y = vec.y * new_speed
+        ship.vel.x = vec.x * new_speed
         return
     end
 
@@ -929,25 +931,28 @@ function add_stars()
     add(stars, new_star)
 end
 
+map_boundary = map_size / 2 + max_orbit_distance + 40
+
 function rnd_outside_window()
     local x, y
+    local edge = flr(rnd(4))
+    local map_boundary_with_padding = map_boundary - 50
+    
+    local slidey_coord = (rnd(2) - 1) * map_boundary_with_padding
+    local edge_coord = (rnd(2) - 1) * 20
 
-    if rnd(1) < 0.5 then
-        -- vertical edge strip
-        if rnd(1) < 0.5 then
-            x = -20 + flr(rnd(20))
-        else
-            x = map_size + flr(rnd(20)) 
-        end
-        y = flr(rnd(map_size))
+    if edge == 0 then
+        x = station.x + slidey_coord
+        y = station.y - map_boundary_with_padding + edge_coord
+    elseif edge == 1 then
+        x = station.x + map_boundary_with_padding + edge_coord
+        y = station.y + slidey_coord
+    elseif edge == 2 then
+        x = station.x + slidey_coord
+        y = station.y + map_boundary_with_padding + edge_coord
     else
-        -- horizontal edge strip
-        if rnd(1) < 0.5 then
-            y = -20 + flr(rnd(20)) 
-        else
-            y = map_size + flr(rnd(20)) 
-        end
-        x = flr(rnd(map_size)) 
+        x = station.x - map_boundary_with_padding + edge_coord
+        y = station.y + slidey_coord
     end
 
     return x, y
