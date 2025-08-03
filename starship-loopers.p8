@@ -399,22 +399,24 @@ function d_end_screen()
 
     camera(0,0)
     if ship.landing_success == true then
-        print_with_glow("you made it home!", 20, 20, 7)
-        print_with_glow("final score: ", 20, 30, 7)
-        print_with_glow(flr(ship.score), 20, 40, 7)
+        print_with_glow("you made it home!", 20, 20 + ui_offset, 7)
+        print_with_glow("final score: " .. flr(ship.score), 20, 30 + ui_offset, 7)
         if new_high_score then
-            print_with_glow("new high score!", 20, 50, 7)
+            print_with_glow("new high score!", 20, 50 + ui_offset, 7)
         end
     else
-        print_with_glow("you drifted into the", 20, 30, 7)
-        print_with_glow("cold depths of space", 20, 40, 7)
+        print_with_glow("you drifted into the", 20, 30 + ui_offset, 7)
+        print_with_glow("cold depths of space", 20, 40 + ui_offset, 7)
         if ship.last_target.type == "blackhole" then
-            print_with_glow("watch out for black holes...", 20, 50, 7)
+            print_with_glow("watch out for black holes...", 20, 50 + ui_offset, 7)
         elseif ship.fuel_left <= 0 then
-            print_with_glow("watch your fuel tank!", 20, 50, 7)
+            print_with_glow("watch your fuel tank!", 20, 50 + ui_offset, 7)
         end
     end
-    draw_button(30, 100, "🅾️ play again", 1)
+    -- draw_button(30, 100, "🅾️ play again", 1)
+    current_message = "🅾️ play again"
+    message_life = 1/30
+    draw_message()
 end
 
 
