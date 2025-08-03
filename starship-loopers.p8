@@ -735,23 +735,55 @@ function get_magnitude(vel)
     return sqrt(sqr(vel.y) + sqr(vel.x))
 end
 
+function get_magnitude(vel)
+    return sqrt(sqr(vel.y) + sqr(vel.x))
+end
+
 function activate_portal()
     if ship.portal_cooldown > 0 then
         printh(ship.portal_cooldown .. "\t" .. get_magnitude(ship.vel))
     end
     cooldown_duration = 50
 
-    if ship.portal_cooldown == flr(cooldown_duration * 6 / 8) then
-        local vec = norm(create_vector(ship.portal_target.x - ship.x, ship.portal_target.y - ship.y))
-        local new_speed = 0.8
-        printh("slow")
-        ship.vel.y = vec.y * new_speed
-        ship.vel.x = vec.x * new_speed
+    -- Neutral state
+    if ship.portal_cooldown == 0 then
+        for portal in all(portals) do
+            if is_collision(ship, portal) then
+                ship.portal_cooldown = cooldown_duration
+                ship.portal_target = portal
+                printh(ship.portal_cooldown .. "\t" .. get_magnitude(ship.vel))
+
+                local vec = norm(create_vector(ship.portal_target - ship.x, ship.portal_target - ship.y))
+                local new_speed = max(0.8, get_magnitude(ship.vel) * .75)
+                
+                ship.vel.y = vec.y * new_speed
+                ship.vel.x = vec.x * new_speed
+
+                break
+            end
+        end
+        return
     end
 
+    -- When a ship is interacting with a portal, before teleport
+    if ship.portal_cooldown > flr(cooldown_duration * 5 / 8) then
+        local vec = norm(create_vector(ship.portal_target - ship.x, ship.portal_target - ship.y))
+        local new_speed = get_magnitude(ship.vel)
+
+        if ship.portal_cooldown == flr(cooldown_duration * 6 / 8) then
+            new_speed = 0.8
+            printh("slow")
+        end
+
+        ship.vel.y = vec.y * new_speed
+        ship.vel.x = vec.x * new_speed
+
+        return
+    end
+
+    -- teleport the ship
     if ship.portal_cooldown == flr(cooldown_duration * 5 / 8) then
         -- find another portal to teleport to
-
         local other_portals = {}
         for p in all(portals) do
             if p != ship.portal_target then
@@ -773,40 +805,22 @@ function activate_portal()
             ship.vel.x = vec.x * new_speed
             ship.portal_target = create_vector(0,0)
         end
+
+        return
     end
 
+    -- leaving new portal
     if ship.portal_cooldown == flr(cooldown_duration * 3 / 8) then
             printh("speed up")
             ship.vel.y *= 1.25
             ship.vel.x *= 1.25
     end
 
+    -- leaving new portal
     if ship.portal_cooldown == flr(cooldown_duration * 2 / 8) then
             printh("speed up")
             ship.vel.y *= 1.15
             ship.vel.x *= 1.15
-    end
-
-    -- don't activate if in cooldown
-    if ship.portal_cooldown > 0 then
-        return
-    end
-    
-    -- check if ship intersecting with any portals
-    for portal in all(portals) do
-        if is_collision(ship, portal) then
-            ship.portal_cooldown = cooldown_duration
-            printh(ship.portal_cooldown .. "\t" .. get_magnitude(ship.vel))
-
-            local vec = norm(create_vector(portal.x - ship.x, portal.y - ship.y))
-            local new_speed = max(0.8, get_magnitude(ship.vel) * .75)
-            
-            ship.vel.y = vec.y * new_speed
-            ship.vel.x = vec.x * new_speed
-
-            ship.portal_target = portal
-            break
-        end
     end
 end
 
