@@ -48,7 +48,8 @@ function _init()
         launch_phase = false,
         landing_countdown = 3,
         landing_success = false,
-        portal_cooldown = 0
+        portal_cooldown = 0,
+        portal_target = create_vector(0,0)
     }
     -- celestial body initialization
     bodies = {}
@@ -72,7 +73,13 @@ function _init()
     for i = 1, num_portals do
         add_portals()
     end
-
+    local new_portal = {
+        x = 175,
+        y = 180,
+        sprite = 3,
+        size = 10
+    }
+    add(portals, new_portal)
     -- stars for title screen background
     stars = {}
     num_stars = 50
@@ -104,7 +111,8 @@ function _init()
     -- camera perspective
     cam = { x = 0, y = 0 }
 
-
+    printh("map_boundary:\t" .. map_boundary)
+    printh("station:\t" .. station.x .. "\t" .. station.y)
 end
 
 function _update()
@@ -276,6 +284,7 @@ function u_play_game()
         ship.state = "drift"
         add_ship_particle(rnd({6,7}))
     end
+    printh("ship location:\t" .. ship.x .. "\t" .. ship.y.. "\t" .. ship.vel.x.. "\t" .. ship.vel.y)
 
     -- scoring: 1 point every second you're alive
     ship.score += (1/30)
@@ -723,36 +732,113 @@ function update_ship_particles()
     end
 end
 
+function get_magnitude(vel)
+    return sqrt(sqr(vel.y) + sqr(vel.x))
+end
+
+function get_magnitude(vel)
+    return sqrt(sqr(vel.y) + sqr(vel.x))
+end
 function activate_portal()
-    -- don't activate if in cooldown
+    -- ship.portal_cooldown: 0 when no portal interaction
+    -- ship.portal_target: the portal that the ship is going into. defined before the ship teleports
+
     if ship.portal_cooldown > 0 then
+        printh(ship.portal_cooldown .. "\t" .. get_magnitude(ship.vel))
+    end
+    cooldown_duration = 50
+
+    -- Neutral state
+    if ship.portal_cooldown == 0 then
+        for portal in all(portals) do
+            if is_collision(ship, portal) then
+                ship.portal_cooldown = cooldown_duration
+                ship.portal_target = portal
+                printh("target portal\t"..ship.portal_target.x.."\t"..ship.portal_target.y)
+                printh(ship.portal_cooldown .. "\t" .. get_magnitude(ship.vel))
+
+                local vec = norm(create_vector(ship.portal_target.x - ship.x, ship.portal_target.y - ship.y))
+                local new_speed = max(0.8, get_magnitude(ship.vel) * .75)
+                
+                ship.vel.y = vec.y * new_speed
+                ship.vel.x = vec.x * new_speed
+
+                break
+            end
+        end
         return
     end
-    
-    -- check if ship intersecting with any portals
-    for portal in all(portals) do
-        if is_collision(ship, portal) then
-            -- find another portal to teleport to
-            local other_portals = {}
-            for p in all(portals) do
-                if p != portal then
-                    add(other_portals, p)
-                end
-            end
 
-            if #other_portals > 0 then
-                local dest = rnd(other_portals)
-                
-                -- instant teleportation
-                ship.x = dest.x
-                ship.y = dest.y
-                
-                -- portal cooldown to prevent immediate re-teleport
-                ship.portal_cooldown = 45
+    -- teleport the ship
+    if ship.portal_cooldown == flr(cooldown_duration * 5 / 8) then
+        -- find another portal to teleport to
+        local other_portals = {}
+        for p in all(portals) do
+            if p != ship.portal_target then
+                add(other_portals, p)
             end
-
-            break
         end
+
+        if #other_portals > 0 then
+            local dest = rnd(other_portals)
+            printh("dest portal\t"..dest.x.."\t"..dest.y)
+            
+            -- teleportation
+            printh("teleport!")
+            ship.x = dest.x
+            ship.y = dest.y
+
+            local vec = norm(create_vector(station.x - dest.x, station.y - dest.y))
+            printh("vec:\t" .. vec.x .. "\t" .. vec.y)
+            local new_speed = get_magnitude(ship.vel)
+            printh("new_speed:\t" .. new_speed)
+            
+            if ship.vel.y > 0 then
+                ship.vel.y = min(vec.y * new_speed, 5)
+            else
+                ship.vel.y = max(vec.y * new_speed, -5)
+            end
+
+            if ship.vel.x > 0 then
+                ship.vel.x = min(vec.x * new_speed, 5)
+            else
+                ship.vel.x = max(vec.x * new_speed, -5)
+            end
+
+            printh("ship.vel:\t" .. ship.vel.y .. "\t" .. ship.vel.x )
+            ship.portal_target = create_vector(0,0)
+        end
+
+        return
+    end
+
+    -- When the ship is entering a portal
+    if ship.portal_target != create_vector(0, 0) then
+        local vec = norm(create_vector(ship.portal_target.x - ship.x, ship.portal_target.y - ship.y))
+        local new_speed = get_magnitude(ship.vel)
+
+        if ship.portal_cooldown == flr(cooldown_duration * 6 / 8) then
+            new_speed = 0.8
+            printh("slow")
+        end
+
+        ship.vel.y = vec.y * new_speed
+        ship.vel.x = vec.x * new_speed
+        return
+    end
+
+    -- leaving new portal
+    if ship.portal_cooldown == flr(cooldown_duration * 3 / 8) then
+            printh("speed up")
+            ship.vel.y *= 1.25
+            ship.vel.x *= 1.25
+    end
+
+    -- leaving new portal
+    if ship.portal_cooldown == flr(cooldown_duration * 2 / 8) then
+            printh("speed up")
+            ship.vel.y *= 1.15
+            ship.vel.x *= 1.15
     end
 end
 
@@ -863,24 +949,27 @@ end
 
 function rnd_outside_window()
     local x, y
+local edge = flr(rnd(4))
+    local map_boundary_with_padding = map_boundary - 80
+    
+    local slidey_coord = flr((rnd(2) - 1) * map_boundary_with_padding)
+    local edge_coord = flr((rnd(2) - 1) * 20)
 
-    if rnd(1) < 0.5 then
-        -- vertical edge strip
-        if rnd(1) < 0.5 then
-            x = -20 + flr(rnd(20))
-        else
-            x = map_size + flr(rnd(20)) 
-        end
-        y = flr(rnd(map_size))
+    if edge == 0 then
+        x = station.x + slidey_coord
+        y = station.y - map_boundary_with_padding + edge_coord
+    elseif edge == 1 then
+        x = station.x + map_boundary_with_padding + edge_coord
+        y = station.y + slidey_coord
+    elseif edge == 2 then
+        x = station.x + slidey_coord
+        y = station.y + map_boundary_with_padding + edge_coord
     else
-        -- horizontal edge strip
-        if rnd(1) < 0.5 then
-            y = -20 + flr(rnd(20)) 
-        else
-            y = map_size + flr(rnd(20)) 
-        end
-        x = flr(rnd(map_size)) 
+        x = station.x - map_boundary_with_padding + edge_coord
+        y = station.y + slidey_coord
     end
+
+    printh("rnd_outside_window():\t" .. x .. "\t" .. y)
 
     return x, y
 end
@@ -891,7 +980,7 @@ function add_portals()
         x = px,
         y = py,
         sprite = 3,
-        size = 4
+        size = 10
     }
     add(portals, new_portal)
 end
@@ -915,10 +1004,26 @@ function create_vector(x_input, y_input)
 end
 
 function norm(vec)
-    local magnitude = sqrt(sqr(vec.x) + sqr(vec.y))
+    local abs_x = abs(vec.x)
+    local abs_y = abs(vec.y)
+    local max_dim = max(abs_x, abs_y)
+
+    if max_dim < 181 then
+        local magnitude = sqrt(sqr(vec.x) + sqr(vec.y))
+        return create_vector((vec.x / magnitude), (vec.y / magnitude))
+    end
+
+    local scale = 1
+    while max_dim > 50 do
+        max_dim /= 2
+        scale *= 2
+    end
     
-    return create_vector((vec.x / magnitude), (vec.y / magnitude))
-end
+    local scaled_x = vec.x / scale
+    local scaled_y = vec.y / scale
+    local magnitude = sqrt(sqr(scaled_x) + sqr(scaled_y))
+    return create_vector(scaled_x / magnitude, scaled_y / magnitude)
+    end
 
 function deepcopy(tbl)
     local copy = {}
