@@ -185,12 +185,12 @@ function u_play_game()
     if btn(❎) then
         if ship.fuel_left >= 0 then
             ship.state = "lock"
-            add_ship_particle(rnd({3,11}))
-            add_ship_particle(rnd({3,11}))
+            add_ship_particle("engine")
+            add_ship_particle("engine")
         end
     else
         ship.state = "drift"
-        add_ship_particle(rnd({6,7}))
+        add_ship_particle("normal")
     end
     printh("ship location:\t" .. ship.x .. "\t" .. ship.y.. "\t" .. ship.vel.x.. "\t" .. ship.vel.y)
 
@@ -287,7 +287,7 @@ function u_end_screen()
         ship.x += ship.vel.x
         ship.y += ship.vel.y
         if ship.anim_counter % 4 == 0 then
-            add_ship_particle(rnd({6})) -- add sparse particles
+            add_ship_particle("normal") -- add sparse particles
         end
         ship.anim_speed = 20 -- slowed for dramatic effect
     end
@@ -473,9 +473,17 @@ function draw_bodies()
         end
     end
 end
+
 function draw_fuel() 
     local fuel_width = max(flr(ship.fuel_left / ship.fuel_max  * 14) + 1, 0)
-    rectfill(119, 17 - fuel_width, 124, 17, 11)
+    if ship.fuel_left < ship.fuel_max / 3 then
+        this_color = 8
+    elseif ship.fuel_left < ship.fuel_max / 2 then
+        this_color = 10
+    else
+        this_color = 11
+    end 
+    rectfill(119, 17 - fuel_width, 124, 17, this_color)
     -- overlaying fuel canister sprite on top
     spr(15, 118, 2)
     spr(31, 118, 10)
@@ -604,6 +612,8 @@ function move_ship()
             ship.fuel_left = min(ship.fuel_left + 100, ship.fuel_max)
             -- point bonus for refueling
             ship.score += 20
+            current_message = "refueled!"
+            message_life = 1.5
         end
     end
 end
@@ -871,12 +881,23 @@ function add_body(type, x, y)
     add(bodies, new_body)
 end
 
-function add_ship_particle(color)
+function add_ship_particle(type)
+    if type == "engine" then
+        if ship.fuel_left < ship.fuel_max / 3 then
+            this_color = rnd({8, 9})
+        elseif ship.fuel_left < ship.fuel_max / 2 then
+            this_color = rnd({9, 10})
+        else
+            this_color = rnd({3, 11})
+        end
+    else
+        this_color = rnd({6, 7})
+    end
     local jitter = (rnd(1) - 0.5) / 20
     local new_part = {
         x = ship.x,
         y = ship.y,
-        color = color,
+        color = this_color,
         vel = create_vector(- (ship.vel.x + jitter) / 4, - (ship.vel.y + jitter) / 4),
         --vel = create_vector(0,0),
         lifespan = rnd(2) - 1,
@@ -1030,8 +1051,8 @@ function init_round()
         x = station.x + 2,
         y = station.y - 4,
         vel = create_vector(0,0),
-        fuel_max = 250,
-        fuel_left = 250,
+        fuel_max = 350,
+        fuel_left = 350,
         score = 0,
         sprite = 2,
         anim_frames = {2,18,34,34,18,2,18,50,50,18},
