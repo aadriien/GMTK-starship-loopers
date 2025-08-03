@@ -798,15 +798,15 @@ function activate_portal()
             printh("new_speed:\t" .. new_speed)
             
             if ship.vel.y > 0 then
-                ship.vel.y = min(vec.y * new_speed, 10)
+                ship.vel.y = min(vec.y * new_speed, 5)
             else
-                ship.vel.y = max(vec.y * new_speed, -10)
+                ship.vel.y = max(vec.y * new_speed, -5)
             end
 
             if ship.vel.x > 0 then
-                ship.vel.x = min(vec.x * new_speed, 10)
+                ship.vel.x = min(vec.x * new_speed, 5)
             else
-                ship.vel.x = max(vec.x * new_speed, -10)
+                ship.vel.x = max(vec.x * new_speed, -5)
             end
 
             printh("ship.vel:\t" .. ship.vel.y .. "\t" .. ship.vel.x )
