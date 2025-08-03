@@ -269,6 +269,8 @@ function d_launch_phase()
 end
 
 function u_play_game()
+    -- printh("My location \t" .. ship.x .. "\t" .. ship.y)
+
     -- accept player input
     if btn(❎) then
         if ship.fuel_left >= 0 then
@@ -288,7 +290,7 @@ function u_play_game()
     move_fuel_pickups()
 
     -- check if ship flying into any portals
-    -- activate_portal()
+    activate_portal()
 
     -- update particles
     update_particles()
@@ -408,7 +410,7 @@ function d_end_screen()
     for body in all(bodies) do
         circfill(body.x, body.y, body.size, body.color)
     end
-    -- draw portals around perimeter
+    -- draw portals
     for portal in all(portals) do
         spr(portal.sprite, portal.x, portal.y)
     end
@@ -655,9 +657,18 @@ function update_particles()
     end
 
 end
-function is_collision(obj_a, obj_b)
-    local dist = dst(obj_a, obj_b)
-    return dist < obj_a.size + obj_b.size
+function is_collision(o1, o2)
+    -- precheck to avoid numeric overflow problems in dst()
+    local dx = abs(o1.x - o2.x)
+    local dy = abs(o1.y - o2.y)
+    local limit = o1.size + o2.size
+
+    if dx > limit or dy > limit then
+        return false
+    end
+
+    local dist = dst(o1, o2)
+    return dist < limit
 end
 
 function update_camera_position()
