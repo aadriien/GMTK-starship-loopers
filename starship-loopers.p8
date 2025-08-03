@@ -14,105 +14,9 @@ function _init()
     map_size = 256
     map_boundary = map_size / 2 + max_orbit_distance + 40
     offset = 0 -- for screenshake
+    highscore = 0
 
-
-    ending_initialized = false 
-
-    selected_idx = 1
-    -- space station
-    station = {
-        x = 128,
-        y = 128,
-        mass = 80,
-        type = "station"
-    }
-
-    -- player initialization
-    ship = {
-        x = station.x,
-        y = station.y,
-        vel = create_vector(0,0),
-        fuel_max = 250,
-        fuel_left = 250,
-        score = 0,
-        sprite = 2,
-        anim_frames = {2,18,34,34,18,2,18,50,50,18},
-        anim_counter = 0,
-        anim_speed = 6,
-        anim_index = 1,
-        size = 4,
-        state = "drift", -- "drift" or "lock"
-        target = "none",
-        launch_angle = 0,
-        launch_countdown = 3,
-        launch_phase = false,
-        landing_countdown = 3,
-        landing_success = false,
-        portal_cooldown = 0,
-        portal_target = create_vector(0,0)
-    }
-    -- celestial body initialization
-    bodies = {}
-    num_bodies = 6
-    num_black_holes = 2
-    for i = 1, num_bodies do 
-        add_body("normal")
-    end
-    for i = 1, num_black_holes do 
-        add_body("blackhole")
-    end
-
-    fuel_snacks = {}
-    max_fuel_snacks = 3
-    for i = 1, max_fuel_snacks do
-        add_fuel_pickup()
-    end
-
-    portals = {}
-    num_portals = 5
-    for i = 1, num_portals do
-        add_portals()
-    end
-    local new_portal = {
-        x = 175,
-        y = 180,
-        sprite = 3,
-        size = 10
-    }
-    add(portals, new_portal)
-    -- stars for title screen background
-    stars = {}
-    num_stars = 50
-    for i = 1, num_stars do
-        add_stars()
-    end
-
-    -- particles for flow field
-    flow_params = {
-        a = rnd(1) - .5,
-        b = rnd(1) - .5,
-        c = rnd(1) - .5,
-        d = rnd(1) - .5
-    }
-
-    particles = {}
-    for i = 1, 500 do
-        add(particles, {
-            x = flr(rnd(512)-256),
-            y = flr(rnd(512)-256),
-            vx = rnd(1) - .5,
-            vy = rnd(1) - .5,
-            lifespan = rnd(64)
-        })
-    end
-
-    ship_particles = {}
-    
-    -- camera perspective
-    cam = { x = 0, y = 0 }
-
-    printh("map_boundary:\t" .. map_boundary)
-    printh("station:\t" .. station.x .. "\t" .. station.y)
+    init_round()
 end
 
 function _update()
@@ -315,7 +219,7 @@ function d_play_game()
     camera(flr(cam.x), flr(cam.y))
     map()
 
-    -- circfill(128,128, map_boundary, 1)
+    circfill(128,128, map_boundary, 1)
 
     -- draw particles
     for particle in all(particles) do
@@ -348,6 +252,11 @@ function u_end_screen()
         ship.vel.y /= 3
         ship.anim_speed = 20
         ending_initialized = true
+        if ship.score >= highscore then
+            new_high_score = true
+            highscore = ship.score
+        end
+
     end
 
 
@@ -385,7 +294,7 @@ function u_end_screen()
     update_ship_particles()
     if btn(🅾️) then
         -- reinitialize game state
-        _init()
+        init_round()
         _upd = u_start_screen
         _drw = d_start_screen
     end
@@ -422,6 +331,9 @@ function d_end_screen()
     if ship.landing_success == true then
         print_with_glow("final score: ", 20, 40, 7)
         print_with_glow(flr(ship.score), 20, 50, 7)
+        if new_high_score then
+            print_with_glow("new high score!", 20, 60, 7)
+        end
     else
         print_with_glow("you drifted into the", 20, 40, 7)
         print_with_glow("cold depths of space", 20, 50, 7)
@@ -451,7 +363,11 @@ function draw_title()
         draw_button(10, 100, "tutorial", selected_idx == 1)
         draw_button(60, 100, "start game", selected_idx == 2)
         print_hint("❎ to select", 25, 115, 6, 0)
-				end
+
+        if highscore > 0 then
+            print_with_glow("best score: " .. flr(highscore), 10, 50, 7)
+        end
+	end
 end
 
 function print_with_glow(str, x, y, col)
@@ -878,7 +794,7 @@ function flow(x, y, scale, speed)
 end
 
 -- initialization functions
-function add_body(type)
+function add_body(type, x, y)
     if type == "normal" then
         new_mass = rnd(80) + 10
         new_size = sqrt(new_mass) - 2
@@ -890,8 +806,8 @@ function add_body(type)
         colors = {7,8,9}
     end
     local new_body = {
-        x = rnd(256),
-        y = rnd(256),
+        x = x,
+        y = y,
         mass = new_mass,
         size = new_size,
         color = colors,
@@ -948,30 +864,35 @@ function add_stars()
 end
 
 function rnd_outside_window()
+    -- generates point somewhere outside a circular area
     local x, y
-local edge = flr(rnd(4))
+    local edge = flr(rnd(4))
     local map_boundary_with_padding = map_boundary - 80
     
-    local slidey_coord = flr((rnd(2) - 1) * map_boundary_with_padding)
     local edge_coord = flr((rnd(2) - 1) * 20)
 
-    if edge == 0 then
-        x = station.x + slidey_coord
-        y = station.y - map_boundary_with_padding + edge_coord
-    elseif edge == 1 then
-        x = station.x + map_boundary_with_padding + edge_coord
-        y = station.y + slidey_coord
-    elseif edge == 2 then
-        x = station.x + slidey_coord
-        y = station.y + map_boundary_with_padding + edge_coord
-    else
-        x = station.x - map_boundary_with_padding + edge_coord
-        y = station.y + slidey_coord
-    end
+    local angle = rnd(1)
+    local newx = cos(angle) * (map_boundary_with_padding + edge_coord) + station.x
+    local newy = sin(angle) * (map_boundary_with_padding + edge_coord) + station.y
 
-    printh("rnd_outside_window():\t" .. x .. "\t" .. y)
 
-    return x, y
+    -- if edge == 0 then
+    --     x = station.x + slidey_coord
+    --     y = station.y - map_boundary_with_padding + edge_coord
+    -- elseif edge == 1 then
+    --     x = station.x + map_boundary_with_padding + edge_coord
+    --     y = station.y + slidey_coord
+    -- elseif edge == 2 then
+    --     x = station.x + slidey_coord
+    --     y = station.y + map_boundary_with_padding + edge_coord
+    -- else
+    --     x = station.x - map_boundary_with_padding + edge_coord
+    --     y = station.y + slidey_coord
+    -- end
+
+    -- printh("rnd_outside_window():\t" .. x .. "\t" .. y)
+
+    return newx, newy
 end
 
 function add_portals()
@@ -1037,6 +958,119 @@ function deepcopy(tbl)
     return copy
 end
 
+function init_round()
+    ending_initialized = false 
+    new_high_score = false
+
+    selected_idx = 1
+    -- space station
+    station = {
+        x = 128,
+        y = 128,
+        mass = 80,
+        type = "station"
+    }
+
+    -- player initialization
+    ship = {
+        x = station.x,
+        y = station.y,
+        vel = create_vector(0,0),
+        fuel_max = 250,
+        fuel_left = 250,
+        score = 0,
+        sprite = 2,
+        anim_frames = {2,18,34,34,18,2,18,50,50,18},
+        anim_counter = 0,
+        anim_speed = 6,
+        anim_index = 1,
+        size = 4,
+        state = "drift", -- "drift" or "lock"
+        target = "none",
+        launch_angle = 0,
+        launch_countdown = 3,
+        launch_phase = false,
+        landing_countdown = 3,
+        landing_success = false,
+        portal_cooldown = 0,
+        portal_target = create_vector(0,0)
+    }
+    -- celestial body initialization
+    -- spaces them out on rings to avoid overlap
+    bodies = {}
+    rings = {40, 60, 80, 80, 80, 90, 90, 90, 100, 100, 100, 115, 128, 128}
+    last_angle = 0
+    max_black_holes = 3
+    num_black_holes = 0
+    for i = 1, #rings do
+        local angle = (rnd(0.25) + 0.25)  + last_angle
+        last_angle = angle
+        local bodyx = (cos(angle) * rings[i]) + map_size / 2
+        local bodyy = (sin(angle) * rings[i]) + map_size / 2
+        if rings[i] > 80 and num_black_holes < max_black_holes then
+            local type = rnd({"normal", "normal", "blackhole"})
+            if type == "blackhole" then
+                num_black_holes += 1
+            end
+            add_body(type, bodyx, bodyy)
+        else
+            add_body("normal", bodyx, bodyy)
+        end
+    end
+
+
+    fuel_snacks = {}
+    max_fuel_snacks = 3
+    for i = 1, max_fuel_snacks do
+        add_fuel_pickup()
+    end
+
+    portals = {}
+    num_portals = 4
+    for i = 1, num_portals do
+        add_portals()
+    end
+    -- local new_portal = {
+    --     x = 175,
+    --     y = 180,
+    --     sprite = 3,
+    --     size = 10
+    -- }
+    -- add(portals, new_portal)
+    -- stars for title screen background
+    stars = {}
+    num_stars = 50
+    for i = 1, num_stars do
+        add_stars()
+    end
+
+    -- particles for flow field
+    flow_params = {
+        a = rnd(1) - .5,
+        b = rnd(1) - .5,
+        c = rnd(1) - .5,
+        d = rnd(1) - .5
+    }
+
+    particles = {}
+    for i = 1, 500 do
+        add(particles, {
+            x = flr(rnd(512)-256),
+            y = flr(rnd(512)-256),
+            vx = rnd(1) - .5,
+            vy = rnd(1) - .5,
+            lifespan = rnd(64)
+        })
+    end
+
+    ship_particles = {}
+    
+    -- camera perspective
+    cam = { x = 0, y = 0 }
+
+    printh("map_boundary:\t" .. map_boundary)
+    printh("station:\t" .. station.x .. "\t" .. station.y)
+end
 
 
 __gfx__
