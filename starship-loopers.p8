@@ -11,8 +11,8 @@ function _init()
 
     -- space station
     station = {
-        x = 64,
-        y = 64,
+        x = 128,
+        y = 128,
         mass = 80,
         type = "station"
     }
@@ -42,7 +42,7 @@ function _init()
     }
     -- celestial body initialization
     bodies = {}
-    num_bodies = 1
+    num_bodies = 6
     num_black_holes = 2
     for i = 1, num_bodies do 
         add_body("normal")
@@ -79,7 +79,7 @@ function _init()
     }
 
     particles = {}
-    for i = 1, 1000 do
+    for i = 1, 1 do
         add(particles, {
             x = flr(rnd(512)-256),
             y = flr(rnd(512)-256),
@@ -95,10 +95,12 @@ function _init()
     cam = { x = 0, y = 0 }
 
     -- global variables
-    max_orbit_distance = 100
+    max_orbit_distance = 64
     max_speed = 6
-    map_boundary = 80
+    map_size = 256
+    map_boundary = map_size / 2 + max_orbit_distance
     offset = 0 -- for screenshake
+
 
     ending_initialized = false 
 
@@ -234,7 +236,11 @@ function d_launch_phase()
     map()
     -- draw particles
     for particle in all(particles) do
-        pset(particle.x + ship.x / 4 - 256, particle.y + ship.y / 4 - 256, 1)
+        if dst(particle, create_vector(128,128)) >= map_boundary then
+            pset(particle.x + ship.x / 4 - 256, particle.y + ship.y / 4 - 256, 5)
+        else
+            pset(particle.x + ship.x / 4 - 256, particle.y + ship.y / 4 - 256, 1)
+        end
     end
     -- draw celestial bodies
     for body in all(bodies) do
@@ -282,7 +288,7 @@ function u_play_game()
     move_fuel_pickups()
 
     -- check if ship flying into any portals
-    activate_portal()
+    -- activate_portal()
 
     -- update particles
     update_particles()
@@ -291,12 +297,8 @@ function u_play_game()
     update_camera_position()
     
     -- end game condition when ship goes off screen
-    if 
-        ship.x < 0 - map_boundary or 
-        ship.x > 128 + map_boundary or 
-        ship.y < 0 - map_boundary or 
-        ship.y > 128 + map_boundary 
-    then
+    local center_distance = dst(ship, create_vector(128,128))
+    if center_distance >= map_boundary then
         _upd = u_end_screen
         _drw = d_end_screen
     end
@@ -307,6 +309,9 @@ function d_play_game()
     cls()
     camera(flr(cam.x), flr(cam.y))
     map()
+
+    -- circfill(128,128, map_boundary, 1)
+
     -- draw particles
     for particle in all(particles) do
         pset(particle.x + ship.x / 4 - 256, particle.y + ship.y / 4 - 256, 1)
@@ -334,6 +339,10 @@ function d_play_game()
     camera(0,0)
     draw_fuel()
     draw_score()
+    print(ship.x)
+    print(ship.y)
+    print(dst(ship, create_vector(128,128)))
+    print(ship.target.type)
 end
 
 function u_end_screen() 
@@ -514,6 +523,7 @@ function draw_lasso()
 
 
 end
+
 function draw_ship()
 	ship.anim_counter += 1
 	
@@ -586,10 +596,9 @@ function move_ship()
             -- TODO: make speed proportional to distance
             local speed = ((max_orbit_distance - distance) / max_orbit_distance) * max_speed
             
-            
             -- lerp to transition into orbit
-            ship.vel.x = ship.vel.x+0.003*(new_vel.x-ship.vel.x)
-            ship.vel.y = ship.vel.y+0.003*(new_vel.y-ship.vel.y)
+            ship.vel.x = ship.vel.x+0.003*((new_vel.x) * speed -ship.vel.x)
+            ship.vel.y = ship.vel.y+0.003*((new_vel.y) * speed -ship.vel.y)
 
             -- gravitational pull towards the center of the celestial body
             local gravity_pull = create_vector(ship.target.x - ship.x, ship.target.y - ship.y)
@@ -652,23 +661,24 @@ function is_collision(obj_a, obj_b)
 end
 
 function update_camera_position()
-    local target_cam_x = ship.x - 64
-    local target_cam_y = ship.y - 64
-    local cam_distance = sqrt(
-        sqr(target_cam_x - cam.x) + 
-        sqr(target_cam_y - cam.y)
-    )
+    -- local target_cam_x = ship.x - 64
+    -- local target_cam_y = ship.y - 64
+    -- local cam_distance = sqrt(
+    --     sqr(target_cam_x - cam.x) + 
+    --     sqr(target_cam_y - cam.y)
+    -- )
     
-    -- if ship teleported far away, snap camera closer
-    if cam_distance > 100 then
-        cam.x = target_cam_x
-        cam.y = target_cam_y
-    else
-        -- normal smooth follow
-        cam.x += 0.1 * (target_cam_x - cam.x)
-        cam.y += 0.1 * (target_cam_y - cam.y)
-    end
-
+    -- -- if ship teleported far away, snap camera closer
+    -- if cam_distance > 100 then
+    --     cam.x = target_cam_x
+    --     cam.y = target_cam_y
+    -- else
+    --     -- normal smooth follow
+    --     cam.x += 0.3 * (target_cam_x - cam.x)
+    --     cam.y += 0.3 * (target_cam_y - cam.y)
+    -- end
+    cam.x = ship.x - 64
+    cam.y = ship.y - 64
     -- shake screen
     if offset >= 0 then
         local fade = 0.9
@@ -691,8 +701,9 @@ end
 
 function update_ship_particles()
     for part in all(ship_particles) do
-        part.x += part.vel.x
-        part.y += part.vel.y
+        flowX, flowY = flow(part.x, part.y, 2, 1)
+        part.x += part.vel.x + flowX
+        part.y += part.vel.y + flowY
         part.lifespan -= 1/30
         if part.lifespan <= 0 then
             del(ship_particles, part)
@@ -780,8 +791,8 @@ function add_body(type)
         new_color = 13
     end
     local new_body = {
-        x = rnd(128),
-        y = rnd(128),
+        x = rnd(256),
+        y = rnd(256),
         mass = new_mass,
         size = new_size,
         color = new_color,
@@ -796,7 +807,8 @@ function add_ship_particle(color)
         x = ship.x,
         y = ship.y,
         color = color,
-        vel = create_vector(- (ship.vel.x + jitter) / 2, - (ship.vel.y + jitter) / 2),
+        vel = create_vector(- (ship.vel.x + jitter) / 4, - (ship.vel.y + jitter) / 4),
+        --vel = create_vector(0,0),
         lifespan = rnd(2) - 1,
         size = rnd({0.5, 0.5, 1})
     }
