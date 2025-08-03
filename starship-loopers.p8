@@ -85,7 +85,8 @@ function _init()
         })
     end
 
-
+    ship_particles = {}
+    
     -- camera perspective
     cam = { x = 0, y = 0 }
 
@@ -257,9 +258,11 @@ function u_play_game()
     if btn(❎) then
         if ship.fuel_left >= 0 then
             ship.state = "lock"
+            add_ship_particle(rnd({3,11}))
         end
     else
         ship.state = "drift"
+        add_ship_particle(rnd({6,7}))
     end
 
     -- scoring: 1 point every second you're alive
@@ -273,6 +276,7 @@ function u_play_game()
 
     -- update particles
     update_particles()
+    update_ship_particles()
     -- smooth camera follow with teleport detection
     update_camera_position()
     
@@ -313,6 +317,10 @@ function d_play_game()
     if (ship.target != "none") and (ship.state == "lock") then
         line(ship.x, ship.y, ship.target.x, ship.target.y, 8)
     end
+        -- draw ship emitted particles
+    for part in all(ship_particles) do
+        circfill(part.x, part.y, part.size, part.color)
+    end
     camera(0,0)
     draw_fuel()
     draw_score()
@@ -339,13 +347,18 @@ function u_end_screen()
         if abs(dsty) <= 1 then
             ship.y = ship.target.y
         end
+    else
+        move_ship()
+        add_ship_particle(rnd({6,7}))
     end
 
 
     move_fuel_pickups()
 
+
     -- update particles
     update_particles()
+    update_ship_particles()
     if btn(🅾️) then
         -- reinitialize game state
         _init()
@@ -377,6 +390,10 @@ function d_end_screen()
 
     -- draw ship
     spr(ship.sprite, ship.x, ship.y)
+    -- draw ship emitted particles
+    for part in all(ship_particles) do
+        circfill(part.x, part.y, part.size, part.color)
+    end
 
     camera(0,0)
     print_with_glow("game over", 20, 30, 7)
@@ -513,7 +530,7 @@ function move_ship()
         if ship.target != "none" then
             -- consume fuel
             ship.fuel_left -= 1
-
+            
             if ship.target.type == "station" then
                 land_ship()
             else
@@ -544,8 +561,8 @@ function move_ship()
 
             -- gravitational pull towards the center of the celestial body
             local gravity_pull = create_vector(ship.target.x - ship.x, ship.target.y - ship.y)
-            gravity_pull.x *= 0.0016 * ((max_orbit_distance - distance) / max_orbit_distance) * sqrt(ship.target.mass) 
-            gravity_pull.y *= 0.0016 * ((max_orbit_distance - distance) / max_orbit_distance) * sqrt(ship.target.mass)
+            gravity_pull.x *= 0.0016 * ((max_orbit_distance - distance) / max_orbit_distance) * sqrt(ship.target.mass) / 2
+            gravity_pull.y *= 0.0016 * ((max_orbit_distance - distance) / max_orbit_distance) * sqrt(ship.target.mass) / 2
             ship.vel.x += gravity_pull.x
             ship.vel.y += gravity_pull.y
 
@@ -620,6 +637,18 @@ function update_camera_position()
         cam.y += 0.1 * (target_cam_y - cam.y)
     end
 end
+
+function update_ship_particles()
+    for part in all(ship_particles) do
+        part.x += part.vel.x
+        part.y += part.vel.y
+        part.lifespan -= 1/30
+        if part.lifespan <= 0 then
+            del(ship_particles, part)
+        end
+    end
+end
+
 function activate_portal()
     -- don't activate if in cooldown
     if ship.portal_cooldown > 0 then
@@ -695,7 +724,7 @@ function add_body(type)
         new_size = sqrt(new_mass) - 2
         new_color = 7
     else -- for black holes
-        new_mass = 800
+        new_mass = 600
         new_size = rnd(2) + 2
         new_color = 13
     end
@@ -710,6 +739,18 @@ function add_body(type)
     add(bodies, new_body)
 end
 
+function add_ship_particle(color)
+    local jitter = (rnd(1) - 0.5) / 20
+    local new_part = {
+        x = ship.x,
+        y = ship.y,
+        color = color,
+        vel = create_vector(- (ship.vel.x + jitter) / 2, - (ship.vel.y + jitter) / 2),
+        lifespan = rnd(2) - 1,
+        size = rnd({0.5, 0.5, 1})
+    }
+    add(ship_particles, new_part)
+end
 
 function add_fuel_pickup() 
     -- ensure fuel only originates from planets
