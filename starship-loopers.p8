@@ -8,11 +8,20 @@ function _init()
     _upd = u_start_screen
     _drw = d_start_screen
 
-    -- player initialization
-    ship = {
+
+    -- space station
+    station = {
         x = 64,
         y = 64,
-        vel = create_vector(1,1),
+        mass = 80,
+        type = "station"
+    }
+
+    -- player initialization
+    ship = {
+        x = station.x,
+        y = station.y,
+        vel = create_vector(0,0),
         fuel_max = 250,
         fuel_left = 250,
         score = 0,
@@ -20,11 +29,16 @@ function _init()
         size = 4,
         state = "drift", -- "drift" or "lock"
         target = "none",
+        launch_angle = 0,
+        launch_countdown = 3,
+        launch_phase = false,
+        landing_countdown = 3,
+        landing_success = false,
         portal_cooldown = 0
     }
     -- celestial body initialization
     bodies = {}
-    num_bodies = 6
+    num_bodies = 1
     num_black_holes = 2
     for i = 1, num_bodies do 
         add_body("normal")
@@ -71,12 +85,6 @@ function _init()
         })
     end
 
-    -- space station
-    station = {
-        x = 20,
-        y = 20,
-        mass = 80
-    }
 
     -- camera perspective
     cam = { x = 0, y = 0 }
@@ -112,8 +120,8 @@ function u_start_screen()
     end
 
     if btn(❎) and selected_idx == 1 then
-        _upd = u_play_game
-        _drw = d_play_game
+        _upd = u_launch_phase
+        _drw = d_launch_phase
     elseif btn(❎) and selected_idx == 2 then
         bodies_temp = deepcopy(bodies)
         _upd = u_intro
@@ -181,14 +189,67 @@ end
 
 function u_launch_phase()
     -- TODO PLAYER CHOOSES LAUNCH VELOCITY ANGLE
+    if btnp(0) then
+        ship.launch_angle = (ship.launch_angle - 0.05) % 1
+    end
+    if btnp(1) then
+        ship.launch_angle = (ship.launch_angle + 0.05) % 1
+    end
 
-    _upd = u_play_game
-    _drw = d_play_game
+    ship.vel.x = cos(ship.launch_angle) 
+    ship.vel.y = - sin(ship.launch_angle)
+
+    if btn(🅾️) then
+        ship.launch_countdown -= 1/30
+        ship.launch_phase = true
+    else
+        ship.launch_countdown = 3
+        ship.launch_phase = false
+    end
+
+    if ship.launch_countdown <= 0 then
+        _upd = u_play_game
+        _drw = d_play_game
+    end
+
+    update_particles()
+    
+
 
 end
 
 function d_launch_phase()
-    -- TODO PLAYER CHOOSES LAUNCH VELOCITY ANGLE
+    cls()
+    camera(ship.x - 64, ship.y - 64)
+    map()
+    -- draw particles
+    for particle in all(particles) do
+        pset(particle.x, particle.y, 1)
+    end
+    -- draw celestial bodies
+    for body in all(bodies) do
+        circfill(body.x, body.y, body.size, body.color)
+    end
+    -- draw portals around perimeter
+    for portal in all(portals) do
+        spr(portal.sprite, portal.x, portal.y)
+    end
+    draw_fuel_pickups()
+    draw_station()
+    
+    spr(ship.sprite, ship.x, ship.y)
+
+    -- draw launch angle
+    line(ship.x, ship.y, ship.x + ship.vel.x * 20, ship.y + ship.vel.y * 20, 9)
+    -- draw launch countdown
+    if ship.launch_phase == true then
+        print(ship.launch_countdown) 
+    end
+    -- print instructions
+    camera(0,0)
+    print_hint("⬅️➡️ to choose launch angle", 2,2,7,3)
+    print_hint("hold 🅾️ to launch", 2,12, 7,3)
+
 end
 
 function u_play_game()
@@ -211,39 +272,9 @@ function u_play_game()
     activate_portal()
 
     -- update particles
-    for particle in all(particles) do
-        particle.x = (particle.x + particle.vx + 128) % 128
-        particle.y = (particle.y + particle.vy + 128) % 128
-        vx, vy = flow(particle.x, particle.y)
-        particle.vx = (particle.vx + vx) / 2
-        particle.vy = (particle.vy + vy) / 2
-        particle.lifespan = particle.lifespan - 1
-        if particle.lifespan < 0 then
-            particle.x = flr(rnd(128))
-            particle.y = flr(rnd(128))
-            particle.vx = rnd(1) - .5
-            particle.vy = rnd(1) - .5
-            particle.lifespan = rnd(64)
-        end
-    end
-
+    update_particles()
     -- smooth camera follow with teleport detection
-    local target_cam_x = ship.x - 64
-    local target_cam_y = ship.y - 64
-    local cam_distance = sqrt(
-        sqr(target_cam_x - cam.x) + 
-        sqr(target_cam_y - cam.y)
-    )
-    
-    -- if ship teleported far away, snap camera closer
-    if cam_distance > 100 then
-        cam.x = target_cam_x
-        cam.y = target_cam_y
-    else
-        -- normal smooth follow
-        cam.x += 0.1 * (target_cam_x - cam.x)
-        cam.y += 0.1 * (target_cam_y - cam.y)
-    end
+    update_camera_position()
     
     -- end game condition when ship goes off screen
     if 
@@ -274,21 +305,47 @@ function d_play_game()
     for portal in all(portals) do
         spr(portal.sprite, portal.x, portal.y)
     end
+    draw_fuel_pickups()
+    draw_station()
+
     -- draw ship
     spr(ship.sprite, ship.x, ship.y)
     if (ship.target != "none") and (ship.state == "lock") then
         line(ship.x, ship.y, ship.target.x, ship.target.y, 8)
     end
-    draw_fuel_pickups()
-    draw_station()
-
     camera(0,0)
     draw_fuel()
     draw_score()
 end
 
 function u_end_screen() 
-    -- ADD END SCREEN CODE HERE    
+    -- ADD END SCREEN CODE HERE
+    update_camera_position()
+    cls()
+    camera(flr(cam.x), flr(cam.y))
+    map()
+    
+    -- slowly dock ship in the station
+    if ship.landing_success then
+        local dstx = ship.target.x - ship.x
+        local dsty = ship.target.y - ship.y
+
+        ship.x += dstx / 15
+        ship.y += dsty / 15
+
+        if abs(dstx) <= 1 then
+            ship.x = ship.target.x
+        end
+        if abs(dsty) <= 1 then
+            ship.y = ship.target.y
+        end
+    end
+
+
+    move_fuel_pickups()
+
+    -- update particles
+    update_particles()
     if btn(🅾️) then
         -- reinitialize game state
         _init()
@@ -299,7 +356,38 @@ end
 
 function d_end_screen()
     -- ADD END SCREEN DRAW CODE HERE
-    draw_title()
+    cls()
+    camera(cam.x, cam.y)
+    map()
+
+    -- draw particles
+    for particle in all(particles) do
+        pset(particle.x, particle.y, 1)
+    end
+    -- draw celestial bodies
+    for body in all(bodies) do
+        circfill(body.x, body.y, body.size, body.color)
+    end
+    -- draw portals around perimeter
+    for portal in all(portals) do
+        spr(portal.sprite, portal.x, portal.y)
+    end
+    draw_fuel_pickups()
+    draw_station()
+
+    -- draw ship
+    spr(ship.sprite, ship.x, ship.y)
+
+    camera(0,0)
+    print_with_glow("game over", 20, 30, 7)
+    if ship.landing_success == true then
+        print_with_glow("final score: ", 20, 40, 7)
+        print_with_glow(flr(ship.score), 20, 50, 7)
+    else
+        print_with_glow("you drifted into the", 20, 40, 7)
+        print_with_glow("cold depths of space", 20, 50, 7)
+    end
+    draw_button(30, 100, "🅾️ play again", 1)
 end
 
 
@@ -324,13 +412,7 @@ function draw_title()
         draw_button(10, 100, "tutorial", selected_idx == 1)
         draw_button(60, 100, "start game", selected_idx == 2)
         print_hint("❎ to select", 25, 115, 6, 0)
-
-    elseif _upd == u_end_screen then
-        print_with_glow("game over", 20, 30, 7)
-        print_with_glow("final score: ", 20, 40, 7)
-        print_with_glow(flr(ship.score), 20, 50, 7)
-        draw_button(30, 100, "🅾️ play again", 1)
-    end
+				end
 end
 
 function print_with_glow(str, x, y, col)
@@ -390,7 +472,7 @@ function draw_fuel_pickups()
 end
 
 function draw_station()
-    sspr(96, 0, 16, 16, station.x, station.y)
+    sspr(96, 0, 16, 16, station.x - 6, station.y - 6)
 end
 
 -- movement physics
@@ -432,6 +514,12 @@ function move_ship()
             -- consume fuel
             ship.fuel_left -= 1
 
+            if ship.target.type == "station" then
+                land_ship()
+            else
+                ship.landing_countdown = 3
+            end
+
             local distance = dst(ship, ship.target)
             -- clockwise and counterclockwise orbit vectors
             local vec1 = create_vector(- (ship.y - ship.target.y), (ship.x - ship.target.x))
@@ -461,6 +549,7 @@ function move_ship()
             ship.vel.x += gravity_pull.x
             ship.vel.y += gravity_pull.y
 
+
         end
     end
     -- ship moves along same path (no friction in space!)
@@ -479,11 +568,58 @@ function move_ship()
     end
 end
 
+function land_ship()
+    ship.landing_countdown -= 1/30
+
+    if ship.landing_countdown <= 0 then
+        ship.landing_success = true
+        _upd = u_end_screen
+        _drw = d_end_screen
+    end
+end
+
+
+function update_particles()
+    for particle in all(particles) do
+        particle.x = (particle.x + particle.vx + 128) % 128
+        particle.y = (particle.y + particle.vy + 128) % 128
+        vx, vy = flow(particle.x, particle.y)
+        particle.vx = (particle.vx + vx) / 2
+        particle.vy = (particle.vy + vy) / 2
+        particle.lifespan = particle.lifespan - 1
+        if particle.lifespan < 0 then
+            particle.x = flr(rnd(128))
+            particle.y = flr(rnd(128))
+            particle.vx = rnd(1) - .5
+            particle.vy = rnd(1) - .5
+            particle.lifespan = rnd(64)
+        end
+    end
+
+end
 function is_collision(obj_a, obj_b)
     local dist = dst(obj_a, obj_b)
     return dist < obj_a.size + obj_b.size
 end
 
+function update_camera_position()
+    local target_cam_x = ship.x - 64
+    local target_cam_y = ship.y - 64
+    local cam_distance = sqrt(
+        sqr(target_cam_x - cam.x) + 
+        sqr(target_cam_y - cam.y)
+    )
+    
+    -- if ship teleported far away, snap camera closer
+    if cam_distance > 100 then
+        cam.x = target_cam_x
+        cam.y = target_cam_y
+    else
+        -- normal smooth follow
+        cam.x += 0.1 * (target_cam_x - cam.x)
+        cam.y += 0.1 * (target_cam_y - cam.y)
+    end
+end
 function activate_portal()
     -- don't activate if in cooldown
     if ship.portal_cooldown > 0 then
@@ -527,6 +663,12 @@ function find_closest()
             closest = body
         end
     end
+
+    local dst_from_station = dst(ship, station)
+    if dst_from_station <= min_dist then
+        closest = station
+    end
+
     return closest
 end
 
