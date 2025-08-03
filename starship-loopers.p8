@@ -8,7 +8,17 @@ function _init()
     _upd = u_start_screen
     _drw = d_start_screen
 
+    -- global variables
+    max_orbit_distance = 100
+    max_speed = 6
+    map_size = 256
+    map_boundary = map_size / 2 + max_orbit_distance + 40
+    offset = 0 -- for screenshake
 
+
+    ending_initialized = false 
+
+    selected_idx = 1
     -- space station
     station = {
         x = 128,
@@ -94,17 +104,7 @@ function _init()
     -- camera perspective
     cam = { x = 0, y = 0 }
 
-    -- global variables
-    max_orbit_distance = 64
-    max_speed = 6
-    map_size = 256
-    map_boundary = map_size / 2 + max_orbit_distance
-    offset = 0 -- for screenshake
 
-
-    ending_initialized = false 
-
-    selected_idx = 1
 end
 
 function _update()
@@ -186,9 +186,7 @@ function d_intro()
 
 
     draw_ship()
-    if (ship.target != "none") and (ship.state == "lock") then
-        line(ship.x, ship.y, ship.target.x, ship.target.y, 8)
-    end
+    draw_lasso()
 
     -- draw only hardcoded examples (2 bodies)
     for body in all(bodies) do
@@ -329,9 +327,7 @@ function d_play_game()
 
     -- draw ship
     draw_ship()
-    if (ship.target != "none") and (ship.state == "lock") then
-        line(ship.x, ship.y, ship.target.x, ship.target.y, 8)
-    end
+    draw_lasso()
         -- draw ship emitted particles
     for part in all(ship_particles) do
         circfill(part.x, part.y, part.size, part.color)
@@ -339,10 +335,6 @@ function d_play_game()
     camera(0,0)
     draw_fuel()
     draw_score()
-    print(ship.x)
-    print(ship.y)
-    print(dst(ship, create_vector(128,128)))
-    print(ship.target.type)
 end
 
 function u_end_screen() 
@@ -520,8 +512,9 @@ function draw_station()
 end
 
 function draw_lasso()
-
-
+    if (ship.target != "none") and (ship.state == "lock") then
+        line(ship.x, ship.y, ship.target.x, ship.target.y, 8)
+    end
 end
 
 function draw_ship()
@@ -566,7 +559,6 @@ function move_ship()
     end
 
     if ship.state == "lock" then
-        -- TODO: orbital mechanics
         ship.target = find_closest()
 
         if ship.target != "none" then
@@ -597,13 +589,13 @@ function move_ship()
             local speed = ((max_orbit_distance - distance) / max_orbit_distance) * max_speed
             
             -- lerp to transition into orbit
-            ship.vel.x = ship.vel.x+0.003*((new_vel.x) * speed -ship.vel.x)
-            ship.vel.y = ship.vel.y+0.003*((new_vel.y) * speed -ship.vel.y)
+            ship.vel.x = ship.vel.x+0.003*(new_vel.x-ship.vel.x)
+            ship.vel.y = ship.vel.y+0.003*(new_vel.y-ship.vel.y)
 
             -- gravitational pull towards the center of the celestial body
             local gravity_pull = create_vector(ship.target.x - ship.x, ship.target.y - ship.y)
-            gravity_pull.x *= 0.0016 * ((max_orbit_distance - distance) / max_orbit_distance) * sqrt(ship.target.mass) / 2
-            gravity_pull.y *= 0.0016 * ((max_orbit_distance - distance) / max_orbit_distance) * sqrt(ship.target.mass) / 2
+            gravity_pull.x *= 0.0016 * ((max_orbit_distance - distance) / max_orbit_distance) * sqrt(ship.target.mass)
+            gravity_pull.y *= 0.0016 * ((max_orbit_distance - distance) / max_orbit_distance) * sqrt(ship.target.mass)
             ship.vel.x += gravity_pull.x
             ship.vel.y += gravity_pull.y
 
@@ -655,6 +647,7 @@ function update_particles()
     end
 
 end
+
 function is_collision(obj_a, obj_b)
     local dist = dst(obj_a, obj_b)
     return dist < obj_a.size + obj_b.size
@@ -701,7 +694,7 @@ end
 
 function update_ship_particles()
     for part in all(ship_particles) do
-        flowX, flowY = flow(part.x, part.y, 2, 1)
+        flowX, flowY = flow(part.x, part.y, 2, 0.5)
         part.x += part.vel.x + flowX
         part.y += part.vel.y + flowY
         part.lifespan -= 1/30
@@ -855,17 +848,17 @@ function rnd_outside_window()
         if rnd(1) < 0.5 then
             x = -20 + flr(rnd(20))
         else
-            x = 128 + flr(rnd(20)) 
+            x = map_size + flr(rnd(20)) 
         end
-        y = flr(rnd(128))
+        y = flr(rnd(map_size))
     else
         -- horizontal edge strip
         if rnd(1) < 0.5 then
             y = -20 + flr(rnd(20)) 
         else
-            y = 128 + flr(rnd(20)) 
+            y = map_size + flr(rnd(20)) 
         end
-        x = flr(rnd(128)) 
+        x = flr(rnd(map_size)) 
     end
 
     return x, y
@@ -883,8 +876,15 @@ function add_portals()
 end
 
 -- utility functions
-function dst(o1,o2)
-    return sqrt(sqr(o1.x-o2.x)+sqr(o1.y-o2.y))
+-- function dst(o1,o2)
+--     return sqrt(sqr(o1.x-o2.x)+sqr(o1.y-o2.y))
+-- end
+
+function dst(o1, o2)
+    local scale = 10
+    local dx = flr(o1.x - o2.x) / scale
+    local dy = flr(o1.y - o2.y) / scale
+    return sqrt(sqr(dx) + sqr(dy)) * scale
 end
 
 function sqr(x) return x*x end
@@ -910,6 +910,8 @@ function deepcopy(tbl)
     end
     return copy
 end
+
+
 
 __gfx__
 000000000000000000666600062212000000000000000000000000000000000000000000000000000000000000000000000000000000000000bbbb0007777770
@@ -953,3 +955,8 @@ __map__
 0006060606060606060606060606060600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000060606060606060606060600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000060600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__sfx__
+010c00000000202502075120751207522075321d5521d5321d5320f5320f5320f5320f53224522245221b52218522185221552224522245520a5520a5520c5520f5520f5520f5520c5520a552000020000200002
+__music__
+00 00424344
+
