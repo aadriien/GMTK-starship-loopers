@@ -685,6 +685,7 @@ function is_collision(o1, o2)
     local dist = dst(o1, o2)
     return dist < limit
 end
+
 function update_camera_position()
     local target_cam_x = ship.x - 64
     local target_cam_y = ship.y - 64
@@ -733,14 +734,6 @@ function update_ship_particles()
             del(ship_particles, part)
         end
     end
-end
-
-function get_magnitude(vel)
-    return sqrt(sqr(vel.y) + sqr(vel.x))
-end
-
-function get_magnitude(vel)
-    return sqrt(sqr(vel.y) + sqr(vel.x))
 end
 
 function activate_portal()
@@ -797,29 +790,29 @@ function activate_portal()
             local new_speed = get_magnitude(ship.vel)
             printh("new_speed:\t" .. new_speed)
             
-            if ship.vel.y > 0 then
-                ship.vel.y = min(vec.y * new_speed, 5)
+            if vec.y * new_speed > 0 then
+                ship.vel.y = max(min(vec.y * new_speed, 5), 0.1)
             else
-                ship.vel.y = max(vec.y * new_speed, -5)
+                ship.vel.y = min(max(vec.y * new_speed, -5), -0.1)
             end
 
-            if ship.vel.x > 0 then
-                ship.vel.x = min(vec.x * new_speed, 5)
+            if vec.x * new_speed > 0 then
+                ship.vel.x = max(min(vec.x * new_speed, 5), 0.1)
             else
-                ship.vel.x = max(vec.x * new_speed, -5)
+                ship.vel.x = min(max(vec.x * new_speed, -5), -0.1)
             end
 
             printh("ship.vel:\t" .. ship.vel.y .. "\t" .. ship.vel.x )
-            ship.portal_target = create_vector(0,0)
+            ship.portal_target = nil
         end
 
         return
     end
 
     -- When the ship is entering a portal
-    if ship.portal_target != create_vector(0, 0) then
+    if ship.portal_target != nil then
         local vec = norm(create_vector(ship.portal_target.x - ship.x, ship.portal_target.y - ship.y))
-        local new_speed = get_magnitude(ship.vel)
+        local new_speed = 3
 
         if ship.portal_cooldown == flr(cooldown_duration * 6 / 8) then
             new_speed = 0.8
@@ -834,15 +827,8 @@ function activate_portal()
     -- leaving new portal
     if ship.portal_cooldown == flr(cooldown_duration * 3 / 8) then
             printh("speed up")
-            ship.vel.y *= 1.25
-            ship.vel.x *= 1.25
-    end
-
-    -- leaving new portal
-    if ship.portal_cooldown == flr(cooldown_duration * 2 / 8) then
-            printh("speed up")
-            ship.vel.y *= 1.15
-            ship.vel.x *= 1.15
+            ship.vel.y *= 5
+            ship.vel.x *= 5
     end
 end
 
@@ -1007,14 +993,14 @@ function create_vector(x_input, y_input)
     return {x = x_input, y = y_input}
 end
 
-function norm(vec)
+
+function get_magnitude(vec)
     local abs_x = abs(vec.x)
     local abs_y = abs(vec.y)
     local max_dim = max(abs_x, abs_y)
 
     if max_dim < 181 then
-        local magnitude = sqrt(sqr(vec.x) + sqr(vec.y))
-        return create_vector((vec.x / magnitude), (vec.y / magnitude))
+        return sqrt(sqr(vec.x) + sqr(vec.y))
     end
 
     local scale = 1
@@ -1025,8 +1011,22 @@ function norm(vec)
     
     local scaled_x = vec.x / scale
     local scaled_y = vec.y / scale
-    local magnitude = sqrt(sqr(scaled_x) + sqr(scaled_y))
-    return create_vector(scaled_x / magnitude, scaled_y / magnitude)
+    local magnitude = scale * sqrt(sqr(scaled_x) + sqr(scaled_y))
+    return magnitude
+end
+
+function norm(vec)
+     if vec.x == 0 and vec.y == 0 then
+        return create_vector(0, 0)
+    end
+
+    local magnitude = get_magnitude(vec)
+
+    if magnitude == 0 then
+        return create_vector(0, 0)
+    end
+
+    return create_vector(vec.x / magnitude, vec.y / magnitude)
     
 end
 
