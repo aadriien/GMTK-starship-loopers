@@ -81,8 +81,8 @@ function _init()
     particles = {}
     for i = 1, 1000 do
         add(particles, {
-            x = flr(rnd(128)),
-            y = flr(rnd(128)),
+            x = flr(rnd(512)-256),
+            y = flr(rnd(512)-256),
             vx = rnd(1) - .5,
             vy = rnd(1) - .5,
             lifespan = rnd(64)
@@ -234,7 +234,7 @@ function d_launch_phase()
     map()
     -- draw particles
     for particle in all(particles) do
-        pset(particle.x, particle.y, 1)
+        pset(particle.x + ship.x / 4 - 256, particle.y + ship.y / 4 - 256, 1)
     end
     -- draw celestial bodies
     for body in all(bodies) do
@@ -309,7 +309,7 @@ function d_play_game()
     map()
     -- draw particles
     for particle in all(particles) do
-        pset(particle.x, particle.y, 1)
+        pset(particle.x + ship.x / 4 - 256, particle.y + ship.y / 4 - 256, 1)
     end
     -- draw celestial bodies
     for body in all(bodies) do
@@ -510,6 +510,10 @@ function draw_station()
     sspr(96, 0, 16, 16, station.x - 6, station.y - 6)
 end
 
+function draw_lasso()
+
+
+end
 function draw_ship()
 	ship.anim_counter += 1
 	
@@ -626,15 +630,15 @@ end
 
 function update_particles()
     for particle in all(particles) do
-        particle.x = (particle.x + particle.vx + 128) % 128
-        particle.y = (particle.y + particle.vy + 128) % 128
+        particle.x = (particle.x + particle.vx + 512) % 512
+        particle.y = (particle.y + particle.vy + 512) % 512
         vx, vy = flow(particle.x, particle.y)
         particle.vx = (particle.vx + vx) / 2
         particle.vy = (particle.vy + vy) / 2
         particle.lifespan = particle.lifespan - 1
         if particle.lifespan < 0 then
-            particle.x = flr(rnd(128))
-            particle.y = flr(rnd(128))
+            particle.x = flr(rnd(512)) - 256
+            particle.y = flr(rnd(512)) - 256
             particle.vx = rnd(1) - .5
             particle.vy = rnd(1) - .5
             particle.lifespan = rnd(64)
@@ -752,7 +756,7 @@ function flow(x, y, scale, speed)
     x = x/128 or 0
     y = y/128 or 0
     scale = scale or 2
-    speed = speed or 1/16
+    speed = speed or 1/12
 
     a = flow_params.a * scale
     b = flow_params.b * scale
