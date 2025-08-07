@@ -9,12 +9,14 @@ Later submitted to [GMTK Game Jam 2025](https://itch.io/jam/gmtk-2025)!
 
 ## Live Link
 
-`starship loopers` can be played directly in browser! Check it out here ——> **[https://microscientist.itch.io/starship-loopers](https://microscientist.itch.io/starship-loopers)**
+Our game, `starship loopers`, can be played directly in browser! 
+
+Check it out here ——> **[https://microscientist.itch.io/starship-loopers](https://microscientist.itch.io/starship-loopers)**
 
 
 ## Example Images
 
 🕹️ Start Screen   |   🚀 Ship Landing   |   🔋 Bonus Refueled
 :-------------------------:|:-------------------------:|:-------------------------:
-![Start screen](./demos/start-screen.png.png)  |  ![Ship landing](./demos/ship-landing.png.png)  |  ![Bonus refueled](./demos/bonus-refuel.png.png)
+![Start screen](./demos/start-screen.png)  |  ![Ship landing](./demos/ship-landing.png)  |  ![Bonus refueled](./demos/bonus-refuel.png)
 
